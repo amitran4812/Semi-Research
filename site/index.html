@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gap Finder</title>
+  <meta name="description" content="Research gaps in NAND, HBF, HBM, DRAM and emerging memory, plus power and wide-bandgap devices, found from each paper's citation tree and free full text.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23e00400'/%3E%3Ccircle cx='10' cy='16' r='4' fill='white'/%3E%3Ccircle cx='22' cy='16' r='4' fill='white'/%3E%3Cpath d='M14 16h4' stroke='white' stroke-width='2' stroke-dasharray='2 2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=Inter:wght@400..800&display=swap">
+  <link rel="stylesheet" href="styles.css?v=__V__">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("gf-theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-glow" aria-hidden="true"></div>
+    <div class="wrap wide header-row">
+      <a class="brand" href="#/" aria-label="Gap Finder home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="#fff" stroke-width="2" stroke-linecap="round"/><rect x="9" y="9" width="6" height="6" rx="1" fill="#fff"/></svg></span>
+        <span class="brand-text">Gap<em>Finder</em></span>
+      </a>
+      <nav class="nav" id="nav" aria-label="Sections">
+        <a href="#/" data-route="home">Home</a>
+        <a href="#/c/nand" data-route="nand">NAND</a>
+        <a href="#/c/hbf" data-route="hbf">HBF &amp; HBM</a>
+        <a href="#/c/dram" data-route="dram">DRAM</a>
+        <a href="#/c/emerging" data-route="emerging">Emerging</a>
+        <a href="#/c/power" data-route="power">Power</a>
+        <a href="#/c/wbg" data-route="wbg" title="Wide-bandgap devices">WBG</a>
+        <a href="#/mine" data-route="mine">My papers</a>
+      </nav>
+      <a class="icon-btn" id="key-btn" href="#/ai" aria-label="AI key settings" title="Use your own AI key">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="8" cy="15" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11.5 12 20 3.5M17 6.5l2.5 2.5M14.5 9l2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </a>
+      <button class="theme-toggle icon-btn" id="theme-toggle" type="button" aria-label="Switch light or dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></g></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="wrap" id="app" tabindex="-1">
+    <p class="muted">Loading…</p>
+  </main>
+
+  <footer class="site-footer wrap">
+    <p id="footer-meta" class="muted"></p>
+    <p class="muted small">Papers, references and citations from <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a>; why-cited sentences from <a href="https://www.semanticscholar.org/product/api" target="_blank" rel="noopener">Semantic Scholar</a>; free full texts from arXiv, open-access PDFs (OpenAlex, Semantic Scholar, <a href="https://unpaywall.org" target="_blank" rel="noopener">Unpaywall</a>) and <a href="https://core.ac.uk" target="_blank" rel="noopener">CORE</a>. Google Scholar has no API, so it is only linked. Gaps are worked out automatically, so read the linked papers before you rely on one.</p>
+  </footer>
+
+  <div id="overlay-root"></div>
+  <script src="art.js?v=__V__"></script>
+  <script type="module" src="app.js?v=__V__"></script>
+  <script src="motion.js?v=__V__" defer></script>
+</body>
+</html>
