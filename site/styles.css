@@ -564,3 +564,15 @@ ul.rising i { font-style: normal; color: var(--muted); text-align: right; font-v
 .badge.via { background: var(--bg-alt); color: var(--muted); border: 1px solid var(--border); }
 .trend .tag { white-space: nowrap; }
 .trend > p.small { margin: 0 0 .8rem; line-height: 2; }
+
+/* Access code */
+body.locked #nav, body.locked #key-btn, body.locked .site-footer { display: none; }
+.lock-wrap { min-height: 60vh; display: grid; place-items: center; padding: 2rem 0; }
+.form.lock { width: min(400px, 100%); padding: 1.8rem 1.6rem; gap: .8rem; text-align: left; }
+.form.lock h1 { font-family: var(--serif); font-size: 1.8rem; margin: .3rem 0 0; }
+.form.lock p { margin: 0; }
+.form.lock .brand-mark.big { width: 52px; height: 52px; border-radius: 14px; }
+.form.lock .check { display: flex; gap: .5rem; align-items: center; font-weight: 500; color: var(--text); font-size: .9rem; }
+.form.lock .notice { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.linkish { background: none; border: 0; padding: 0; color: var(--red); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }

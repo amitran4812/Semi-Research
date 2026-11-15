@@ -6,6 +6,7 @@ import { buildTree } from "./lib/tree.js";
 import { analyzeTree, coverage, guessCategory, keepRegexes, profile, topicGaps, GAP_TYPES, STAGES } from "./lib/engine.js";
 import { findDois, cleanText } from "./lib/text.js";
 import { PROVIDERS, analyzeWithAI, complete, buildPrompt, parseJson, CHAT_SYSTEM } from "./lib/ai.js";
+import { exportKey, importKey, isSealed, open as openBox, unlock, CHECK } from "./lib/lock.js";
 import { ruleBriefing, trendPrompt, trendTerms, TREND_SYSTEM, TREND_SCHEMA } from "./lib/trends.js";
 
 const app = document.getElementById("app");
@@ -63,8 +64,55 @@ function crumbs(list) { return `<nav class="crumbs">${list.map((c, i) => (i ? "<
 
 // ------------------------------------------------------------------ data
 async function getJson(path) {
-  try { const r = await fetch(path + "?v=" + encodeURIComponent((D.index && D.index.updated) || Date.now())); return r.ok ? await r.json() : null; } catch (e) { return null; }
+  let j = null;
+  try { const r = await fetch(path + "?v=" + encodeURIComponent((D.index && D.index.updated) || Date.now())); j = r.ok ? await r.json() : null; } catch (e) { return null; }
+  if (!isSealed(j)) return j;
+  if (!D.key) return null;
+  try { return await openBox(D.key, j); } catch (e) { return null; }
 }
+
+// ------------------------------------------------------------------ access code
+// The data files are encrypted with the access code (see lib/lock.js); without the code nothing loads.
+async function savedKey(lock) {
+  const s = store.get("gf-access") || store.get("gf-access", true);
+  if (!s || s.salt !== lock.salt) return null;
+  try { const k = await importKey(s.key); return (await openBox(k, lock.check)) === CHECK ? k : null; } catch (e) { return null; }
+}
+function lockScreen(lock) {
+  return new Promise((resolve) => {
+    document.body.classList.add("locked");
+    app.innerHTML = `<div class="lock-wrap"><form class="card form lock" id="lock-form" autocomplete="off">
+      <span class="brand-mark big" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="#fff" stroke-width="2"/><path d="M8 10V7a4 4 0 018 0v3" fill="none" stroke="#fff" stroke-width="2"/></svg></span>
+      <h1>Access code</h1>
+      <p class="muted">This site is private. Enter the access code to open it.</p>
+      <label class="sr-only" for="lock-code">Access code</label>
+      <input id="lock-code" type="password" required autofocus placeholder="Access code" autocomplete="current-password">
+      <label class="check"><input type="checkbox" id="lock-remember"> Remember on this device</label>
+      <div class="notice err" id="lock-err" hidden>That code is not right.</div>
+      <button class="btn" type="submit">Open</button>
+    </form></div>`;
+    const form = document.getElementById("lock-form");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector("button"), err = document.getElementById("lock-err");
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Checking…'; err.hidden = true;
+      const key = await unlock(lock, document.getElementById("lock-code").value);
+      if (!key) { btn.disabled = false; btn.textContent = "Open"; err.hidden = false; document.getElementById("lock-code").select(); return; }
+      const remember = document.getElementById("lock-remember").checked;
+      store.set("gf-access", { salt: lock.salt, key: await exportKey(key) }, !remember);
+      document.body.classList.remove("locked");
+      resolve(key);
+    });
+  });
+}
+async function gate() {
+  let lock = null;
+  try { const r = await fetch("data/lock.json?v=" + Date.now()); lock = r.ok ? await r.json() : null; } catch (e) {}
+  if (!lock || !lock.salt) return;
+  D.locked = true;
+  D.key = (await savedKey(lock)) || (await lockScreen(lock));
+}
+function lockOut() { store.del("gf-access"); location.hash = "#/"; location.reload(); }
 async function loadTopic(id) {
   if (!(id in D.topics)) D.topics[id] = await getJson("data/topics/" + id + ".json");
   return D.topics[id];
@@ -672,9 +720,15 @@ function themeToggle() {
 async function init() {
   themeToggle();
   updateKeyBtn();
+  await gate();
   D.cfg = await (await fetch("config.json?v=" + Date.now())).json();
   D.index = await getJson("data/index.json");
-  if (D.index) document.getElementById("footer-meta").textContent = `Field data updated ${fmtDate(D.index.updated)}${D.index.ai ? " · gaps refined by Claude" : ""}.`;
+  const meta = document.getElementById("footer-meta");
+  if (D.index) meta.textContent = `Field data updated ${fmtDate(D.index.updated)}${D.index.ai ? " · gaps refined by Claude" : ""}.`;
+  if (D.locked) {
+    meta.insertAdjacentHTML("beforeend", ' <button type="button" class="linkish" id="lock-out">Lock this device</button>');
+    document.getElementById("lock-out").addEventListener("click", lockOut);
+  }
   window.addEventListener("hashchange", route);
   route();
 }

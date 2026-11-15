@@ -56,6 +56,7 @@ jobs:
           S2_API_KEY: ${{ secrets.S2_API_KEY }}
           UNPAYWALL_EMAIL: ${{ vars.UNPAYWALL_EMAIL }}
           CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
+          GAPFINDER_ACCESS_CODE: ${{ secrets.GAPFINDER_ACCESS_CODE }}
           ONLY: ${{ inputs.only }}
           REFRESH: ${{ inputs.refresh }}
         run: |

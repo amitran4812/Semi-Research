@@ -17,6 +17,7 @@ import { buildTree, slim } from "../site/lib/tree.js";
 import { analyzeTree, keepRegexes } from "../site/lib/engine.js";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { phraseRegex } from "../site/lib/text.js";
+import { isSealed, newLock, open, seal, unlock } from "../site/lib/lock.js";
 import { claudeAnalysis, claudeTrend } from "./claude.mjs";
 import { growth, newsUrl, parseRss, parseYearCounts, risingTerms, ruleBriefing, trendTerms } from "../site/lib/trends.js";
 
@@ -42,13 +43,45 @@ const src = new Sources({
   pdfjs, keepRx: keepRegexes(cfg), log, pause: 150,
 });
 
-function readJson(file, dflt) {
-  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { return dflt; }
+// Data files are encrypted with the access code when GAPFINDER_ACCESS_CODE is set (see site/lib/lock.js).
+let KEY = null;
+function readPlain(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { return null; }
 }
-function writeJson(file, data) {
+function writePlain(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file + ".tmp", JSON.stringify(data));
   fs.renameSync(file + ".tmp", file);
+}
+export async function readJson(file, dflt) {
+  const j = readPlain(file);
+  if (!j) return dflt;
+  if (!isSealed(j)) return j;
+  if (!KEY) return dflt;
+  try { return await open(KEY, j); } catch (e) { return dflt; }
+}
+export async function writeJson(file, data) {
+  writePlain(file, KEY ? await seal(KEY, data) : data);
+}
+
+// Set up the access-code lock: reuse the site's salt when the code still matches, else start a new one
+// (old data sealed with another code can't be read, so it is rebuilt). No code: the site is open.
+export async function setupLock(code, dir = DATA) {
+  const file = path.join(dir, "lock.json");
+  if (!code) {
+    if (fs.existsSync(file)) { fs.unlinkSync(file); log("No access code set: the site is open and data is written unencrypted."); }
+    KEY = null;
+    return null;
+  }
+  const old = readPlain(file);
+  KEY = old ? await unlock(old, code) : null;
+  if (!KEY) {
+    if (old) log("The access code changed: older data was sealed with another code and will be rebuilt.");
+    const made = await newLock(code);
+    KEY = made.key;
+    writePlain(file, made.lock);
+  }
+  return KEY;
 }
 const daysAgo = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
 
@@ -113,7 +146,9 @@ async function trendPapers(cat, topic, terms, since, have) {
 
 async function main() {
   const since = new Date(Date.now() - cfg.lookback_days * 86400000).toISOString().slice(0, 10);
-  const index = readJson(path.join(DATA, "index.json"), { categories: [] });
+  await setupLock(process.env.GAPFINDER_ACCESS_CODE || "");
+  if (KEY) log("Access code set: data files are encrypted.");
+  const index = await readJson(path.join(DATA, "index.json"), { categories: [] });
   const catIndex = Object.fromEntries((index.categories || []).map((c) => [c.id, c]));
   let aiCalls = 0;
 
@@ -125,7 +160,7 @@ async function main() {
       let pool = (await topicPapers(cat, topic, since)).map((p) => ({ ...p, topic: topic.id }));
       log(`   ${topic.id}: ${pool.length} recent papers`);
       if (!flag("--no-trends")) {
-        const old = readJson(path.join(DATA, "topics", topic.id + ".json"), {}).trend;
+        const old = (await readJson(path.join(DATA, "topics", topic.id + ".json"), {})).trend;
         let tr = await topicTrend(cat, topic, pool, { ai: useAI });
         if (tr.by === "ai") aiCalls++;
         if (!tr.years.length && !tr.news.length && old) { log(`   ${topic.id}: trend sources down, keeping the previous briefing`); tr = old; }
@@ -141,7 +176,7 @@ async function main() {
 
     for (const topic of cat.topics) {
       const file = path.join(DATA, "topics", topic.id + ".json");
-      const old = readJson(file, { seeds: [] });
+      const old = await readJson(file, { seeds: [] });
       const oldTrees = Object.fromEntries((old.seeds || []).map((t) => [t.seed.id, t]));
       const pool = pools[topic.id];
       if (!pool.length && (old.pool || []).length) {
@@ -175,7 +210,7 @@ async function main() {
         .sort((a, b) => String(b.date).localeCompare(String(a.date)))
         .slice(0, 90)
         .map((p) => ({ ...slim(p, 500), topic: topic.id, ...(p.via ? { via: p.via } : {}) }));
-      writeJson(file, { topic: topic.id, category: cat.id, updated: new Date().toISOString(), since, pool: poolSlim, seeds: trees, trend: trends[topic.id] || old.trend || null });
+      await writeJson(file, { topic: topic.id, category: cat.id, updated: new Date().toISOString(), since, pool: poolSlim, seeds: trees, trend: trends[topic.id] || old.trend || null });
       topicsOut.push({
         id: topic.id, name: topic.name, papers: pool.length, seeds: trees.length,
         tx: pool.filter((p) => p.tx).length,
@@ -193,7 +228,7 @@ async function main() {
     ai: useAI,
     categories: cfg.categories.map((c) => catIndex[c.id]).filter(Boolean),
   };
-  writeJson(path.join(DATA, "index.json"), out);
+  await writeJson(path.join(DATA, "index.json"), out);
   log(`Done. API calls: ${src.calls} (papers), ${aiCalls} (Claude).`);
 }
 

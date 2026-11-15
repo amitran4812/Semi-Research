@@ -26,6 +26,15 @@ On **My papers** anyone can add their own paper or several (DOI, arXiv id, OpenA
 
 The key button (top right) takes a key for **Claude, OpenAI, Gemini or any OpenAI-compatible API** (OpenRouter, Groq, Mistral, DeepSeek, a local Ollama or LM Studio server). Then every citation tree, including the user's own, gets an **Analyse with AI** button (summary, why the base paper matters, sharper gaps, and whether each related paper's idea is already done here, applies, partly applies or does not apply) and a box to ask questions about the tree. The key stays in the browser and is sent only to the chosen provider; it is forgotten when the tab closes unless "Remember" is ticked.
 
+### Access code
+
+Add a repository secret **`GAPFINDER_ACCESS_CODE`** and the site asks for that code before it shows anything. This is not a JavaScript check that can be skipped: the build encrypts every data file (`site/data/*.json`) with AES-256-GCM, using a key made from the code (PBKDF2-SHA256, 600,000 rounds). Without the code the published files are unreadable. Only `data/lock.json` is public; it holds a random salt and an encrypted check value, never the code. Visitors can tick "Remember on this device"; "Lock this device" in the footer forgets it.
+
+- Use a long code (a passphrase of four or more words). The encrypted files are public, so a short code can be guessed offline.
+- Change the code by changing the secret and running the workflow for **all** fields; older data sealed with the old code is rebuilt.
+- What it does not hide: in a public repository the source code and `config.json` (topics, search phrases, background text) stay readable, and so do any data files committed before the code was set (git history). Make the repository private to hide those too (GitHub Pages from a private repository needs a paid GitHub plan).
+- Remove the secret to open the site again.
+
 ## How it runs
 
 A GitHub Actions job (`.github/workflows/update.yml`) pulls new papers once a week (Mondays 01:00 UTC) and on demand. It fetches papers, builds the trees, writes `site/data/*.json`, commits them and publishes `site/` to GitHub Pages. No server.
@@ -48,6 +57,7 @@ The site is then at `https://<user>.github.io/<repo>/`.
 | `S2_API_KEY` | Actions *secret* | Semantic Scholar key (free on request) for higher rate limits. |
 | `UNPAYWALL_EMAIL` | Actions *variable* | Email Unpaywall asks for; turns on Unpaywall open-access lookups (falls back to `OPENALEX_EMAIL`). |
 | `CORE_API_KEY` | Actions *secret* | Free key from core.ac.uk; adds full texts from university repositories. |
+| `GAPFINDER_ACCESS_CODE` | Actions *secret* | Locks the site behind this code (see *Access code*). |
 
 Trees are kept for 14 days and only new ones are sent to Claude, so a weekly run makes at most about 50 Claude calls for trees plus one briefing per topic (28).
 
@@ -83,6 +93,7 @@ site/
   lib/engine.js                      stage detection, gap checks, coverage grid
   lib/fulltext.js                    free full text: arXiv HTML, open PDFs (pdf.js), limitations / future work
   lib/ai.js                          prompt, JSON schema, bring-your-own-key providers
+  lib/lock.js                        access code: AES-GCM encryption of the data files
   lib/trends.js                      topic briefing: papers per year, rising terms, news, briefing prompt
   data/                              written by the scheduled build
 pipeline/run.mjs                     scheduled build
