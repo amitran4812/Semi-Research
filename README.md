@@ -4,6 +4,7 @@ A website that finds research gaps in semiconductor devices. The main focus is *
 
 For each topic it:
 
+0. **Works out why the topic is hot** before it searches. It answers three questions: why is it trending now, what is the core idea, and what is industry doing? It uses papers per year (OpenAlex), terms that turn up in this year's papers far more often than three years ago, news headlines from the last two months (Google News RSS) and a short background written by hand for every topic in `config.json`. Claude writes the briefing when a key is set; otherwise rules write it from the same numbers. The briefing's search phrases then run as an extra search, so newer work that the fixed phrases miss is found too (marked *via briefing*). Each topic page opens with a **Why it's hot · Industry now** section: the three answers, a papers-per-year chart, the rising terms, the headlines and open questions. Visitors can rewrite the briefing with their own AI key.
 1. **Finds the newest papers every week**, IEEE Transactions first (OpenAlex search over the last 150 days, plus the core device journals by ISSN).
 2. **Builds a citation tree** for the best few: the paper's references, its **base paper** (the most similar and most influential reference), the papers that cite it, who else builds on the base paper, and who builds on the next most important references. Semantic Scholar adds *why* each paper was cited (methodology / background / result, and the sentence that cites it).
 3. **Reads the free full text** where a legal open copy exists (arXiv HTML/PDF, the open-access PDF links from OpenAlex, Semantic Scholar and Unpaywall, and CORE's repository full texts; Crossref fills in missing abstracts). It keeps the sentences about what was fabricated, simulated or put in a circuit, and the authors' own **limitations and future work**. Google Scholar has no API and blocks automated access, so it is only linked from every paper.
@@ -48,13 +49,13 @@ The site is then at `https://<user>.github.io/<repo>/`.
 | `UNPAYWALL_EMAIL` | Actions *variable* | Email Unpaywall asks for; turns on Unpaywall open-access lookups (falls back to `OPENALEX_EMAIL`). |
 | `CORE_API_KEY` | Actions *secret* | Free key from core.ac.uk; adds full texts from university repositories. |
 
-Trees are kept for 14 days and only new ones are sent to Claude, so a weekly run makes at most about 50 Claude calls.
+Trees are kept for 14 days and only new ones are sent to Claude, so a weekly run makes at most about 50 Claude calls for trees plus one briefing per topic (28).
 
 ## Customising
 
 Everything lives in [`site/config.json`](site/config.json):
 
-- `categories[].topics`: each topic's search phrases. Add a topic and it gets its own page and square.
+- `categories[].topics`: each topic's search phrases and `brief` (core idea, why it is hot, what industry is doing, extra search phrases). Add a topic and it gets its own page and square. `brief_asof` dates the hand-written background; update it when the field moves.
 - `categories[].venues_issn`: journals searched first (IEEE T-ED, T-PEL, TDMR, EDL, JSSC, JEDS, …).
 - `categories[].features`: the effects and techniques checked, the words that detect them, and the TCAD advice for each (`kind: technique` ones can move between topics).
 - `categories[].eda`: compact model, EDA tools and steps for the "put it in a circuit" gap.
@@ -65,7 +66,7 @@ Everything lives in [`site/config.json`](site/config.json):
 
 ```bash
 npm install
-node pipeline/run.mjs --only nand      # or no flag for all fields; --no-ai, --refresh, --no-fulltext
+node pipeline/run.mjs --only nand      # or no flag for all fields; --no-ai, --refresh, --no-fulltext, --no-trends
 npm run serve                          # http://localhost:8000
 npm test                               # offline tests
 ```
@@ -82,6 +83,7 @@ site/
   lib/engine.js                      stage detection, gap checks, coverage grid
   lib/fulltext.js                    free full text: arXiv HTML, open PDFs (pdf.js), limitations / future work
   lib/ai.js                          prompt, JSON schema, bring-your-own-key providers
+  lib/trends.js                      topic briefing: papers per year, rising terms, news, briefing prompt
   data/                              written by the scheduled build
 pipeline/run.mjs                     scheduled build
 pipeline/claude.mjs                  Claude refinement (Anthropic SDK)

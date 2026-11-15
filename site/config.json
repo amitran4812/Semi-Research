@@ -101,7 +101,18 @@
             "3D NAND",
             "charge trap flash",
             "vertical NAND"
-          ]
+          ],
+          "brief": {
+            "idea": "Charge-trap cells are stacked along a vertical channel hole, so density grows by adding word-line layers instead of shrinking the cell.",
+            "why": "Vendors have gone past 300 word-line layers and roadmaps aim at 400 and more, and AI data centres are buying high-capacity SSDs, so every extra layer and every thinner layer counts.",
+            "industry": "Samsung, SK hynix with Solidigm, Kioxia with SanDisk, Micron and YMTC compete on layer count, on bonding the CMOS wafer to the array wafer, and on QLC for AI storage.",
+            "terms": [
+              "charge trap layer engineering",
+              "word line pitch scaling",
+              "lateral charge migration",
+              "channel hole scaling"
+            ]
+          }
         },
         {
           "id": "nand-process",
@@ -112,7 +123,18 @@
             "word line stacking",
             "high aspect ratio etch",
             "multi-deck 3D NAND"
-          ]
+          ],
+          "brief": {
+            "idea": "Channel holes are etched through hundreds of oxide/nitride pairs in several decks, then the nitride is replaced by metal word lines.",
+            "why": "Thinner layers and taller stacks push etch aspect ratio, deck count, stress and word-line resistance to their limits.",
+            "industry": "Equipment makers push cryogenic high-aspect-ratio etch and molybdenum word lines in place of tungsten; memory makers trade deck count against cost per bit.",
+            "terms": [
+              "molybdenum word line",
+              "cryogenic etch",
+              "high aspect ratio etch",
+              "multi-deck 3D NAND"
+            ]
+          }
         },
         {
           "id": "nand-reliability",
@@ -122,7 +144,18 @@
             "NAND retention",
             "NAND endurance",
             "read disturb NAND"
-          ]
+          ],
+          "brief": {
+            "idea": "Threshold voltage drifts from charge loss, trap generation, disturb and lateral migration along the shared charge-trap layer.",
+            "why": "More bits per cell and thinner stacked layers shrink the margins, while AI and enterprise SSDs need stated endurance and retention.",
+            "industry": "Controllers lean on LDPC ECC, read retry and temperature-aware reads, and vendors qualify QLC drives for data-centre use.",
+            "terms": [
+              "lateral charge migration",
+              "read disturb 3D NAND",
+              "early retention loss",
+              "cross temperature NAND"
+            ]
+          }
         },
         {
           "id": "nand-cache-peripheral",
@@ -132,7 +165,18 @@
             "NAND cache program",
             "CMOS under array",
             "NAND sense amplifier"
-          ]
+          ],
+          "brief": {
+            "idea": "Page buffers, sense amplifiers, cache latches and charge pumps move under or onto a bonded CMOS wafer so they cost no array area.",
+            "why": "I/O speed per die keeps rising and bonding the CMOS wafer separately frees the choice of peripheral transistor.",
+            "industry": "Vendors ship CMOS-under-array or CMOS-bonded-array designs and faster NAND interfaces each generation.",
+            "terms": [
+              "CMOS bonded array",
+              "NAND interface speed",
+              "page buffer sensing",
+              "wafer bonding NAND"
+            ]
+          }
         },
         {
           "id": "fe-nand",
@@ -141,7 +185,17 @@
             "ferroelectric NAND",
             "FeFET NAND",
             "ferroelectric vertical NAND"
-          ]
+          ],
+          "brief": {
+            "idea": "A ferroelectric hafnia gate stack stores the bit as polarisation instead of trapped charge, for lower program voltage and faster program.",
+            "why": "Low-voltage, low-power NAND matters for AI storage power budgets, and hafnia ferroelectrics are CMOS-friendly.",
+            "industry": "Memory makers and universities have shown ferroelectric vertical NAND strings at IEDM and VLSI; it is still research, not product.",
+            "terms": [
+              "hafnium zirconium oxide NAND",
+              "ferroelectric charge trap",
+              "low voltage NAND program"
+            ]
+          }
         },
         {
           "id": "nand-mlc",
@@ -151,7 +205,18 @@
             "PLC NAND",
             "multi-level cell flash",
             "penta-level cell"
-          ]
+          ],
+          "brief": {
+            "idea": "Each cell holds 4 (QLC) or 5 (PLC) bits by placing more threshold-voltage levels in the same window.",
+            "why": "Cost per bit and drive capacity for AI data sets favour QLC, and PLC is the next step if margins allow.",
+            "industry": "Very high-capacity QLC enterprise SSDs (over 100 TB) are shipping for AI data centres, and PLC has been shown in prototypes.",
+            "terms": [
+              "QLC SSD",
+              "penta-level cell",
+              "threshold voltage distribution",
+              "multi-level sensing"
+            ]
+          }
         },
         {
           "id": "nand-ssd",
@@ -162,7 +227,18 @@
             "flash translation layer",
             "zoned namespace SSD",
             "computational storage"
-          ]
+          ],
+          "brief": {
+            "idea": "The controller, flash translation layer, ECC and host interface turn raw NAND into a drive with the speed, endurance and latency the host needs.",
+            "why": "AI training and inference pipelines need storage that feeds GPUs fast, which drives PCIe 5/6 SSDs, new data-placement interfaces and CXL.",
+            "industry": "Vendors ship PCIe Gen5 drives and work on Gen6, and the NVMe group added flexible data placement for lower write amplification.",
+            "terms": [
+              "flexible data placement",
+              "zoned namespace",
+              "PCIe Gen5 SSD",
+              "computational storage"
+            ]
+          }
         }
       ],
       "features": [
@@ -384,7 +460,18 @@
             "HBF NAND",
             "flash memory for AI inference",
             "NAND for LLM inference"
-          ]
+          ],
+          "brief": {
+            "idea": "Stack NAND dies with through-silicon vias, the way HBM stacks DRAM, beside the GPU: far more capacity than HBM, with read bandwidth good enough for model weights.",
+            "why": "AI inference models outgrow HBM capacity, and the weights are mostly read, which suits flash.",
+            "industry": "SanDisk introduced HBF in 2025 and signed an agreement with SK hynix to standardise it; first samples are talked about for 2026.",
+            "terms": [
+              "NAND die stacking",
+              "LLM inference memory",
+              "read disturb high bandwidth",
+              "flash for AI inference"
+            ]
+          }
         },
         {
           "id": "hbm",
@@ -394,7 +481,18 @@
             "HBM3",
             "HBM4",
             "HBM DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "DRAM dies stacked with through-silicon vias on a base logic die, with a very wide interface on an interposer next to the processor.",
+            "why": "Every AI accelerator needs it, supply is tight, and each generation widens the interface and adds dies.",
+            "industry": "JEDEC published HBM4 with a 2048-bit interface in 2025; SK hynix, Samsung and Micron compete, and base dies move to foundry logic processes.",
+            "terms": [
+              "HBM4",
+              "hybrid bonding HBM",
+              "HBM thermal",
+              "custom base die"
+            ]
+          }
         },
         {
           "id": "mem-3d-integration",
@@ -404,7 +502,18 @@
             "hybrid bonding memory",
             "3D stacked memory",
             "die stacking DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "Dies or wafers are joined with TSVs, micro-bumps or direct copper-copper hybrid bonding to stack memory and logic.",
+            "why": "Taller HBM stacks under a fixed height limit, and NAND made from two bonded wafers, both push hybrid bonding.",
+            "industry": "Memory makers and equipment vendors develop hybrid bonding for future HBM, and wafer bonding is already used in NAND.",
+            "terms": [
+              "Cu-Cu hybrid bonding",
+              "wafer-to-wafer bonding",
+              "TSV stress",
+              "die stacking thermal"
+            ]
+          }
         },
         {
           "id": "cxl-pim",
@@ -414,7 +523,17 @@
             "near-memory computing",
             "CXL memory",
             "processing-in-memory DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "Move compute next to or into the memory, or share memory between processors over CXL, to beat the memory wall.",
+            "why": "AI workloads are limited by memory bandwidth and capacity more than by compute.",
+            "industry": "Memory makers have shown processing-in-memory DRAM and HBM parts, and CXL memory expanders are reaching servers.",
+            "terms": [
+              "CXL memory expansion",
+              "PIM DRAM",
+              "LLM memory bandwidth"
+            ]
+          }
         }
       ],
       "features": [
@@ -603,7 +722,18 @@
             "DRAM capacitor",
             "buried channel array transistor",
             "DRAM access transistor"
-          ]
+          ],
+          "brief": {
+            "idea": "One transistor and one capacitor per bit, with a buried word-line access transistor and a tall high-k capacitor.",
+            "why": "Scaling below the current 10 nm-class nodes is hard: capacitor height, leakage and access-transistor drive all hit limits.",
+            "industry": "Vendors ship 1b and 1c nm-class nodes with EUV on more layers and look at new cell structures for the next steps.",
+            "terms": [
+              "1c nm DRAM",
+              "high-k capacitor dielectric",
+              "buried word line",
+              "DRAM EUV"
+            ]
+          }
         },
         {
           "id": "dram-4f2",
@@ -612,7 +742,17 @@
             "4F2 DRAM",
             "vertical channel transistor DRAM",
             "vertical access transistor DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "A vertical channel transistor under the capacitor shrinks the cell from 6F² to 4F².",
+            "why": "It is the next density step on DRAM roadmaps once planar 6F² stops scaling.",
+            "industry": "Memory makers have shown vertical-channel DRAM cells in research and put 4F² on their roadmaps for the end of the decade.",
+            "terms": [
+              "vertical channel transistor",
+              "4F2 cell",
+              "IGZO DRAM"
+            ]
+          }
         },
         {
           "id": "3d-dram",
@@ -622,7 +762,18 @@
             "capacitorless DRAM",
             "2T0C",
             "IGZO DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "Stack DRAM cells in layers like 3D NAND, or use capacitorless gain cells built from oxide semiconductors such as IGZO.",
+            "why": "Planar DRAM scaling is ending, so stacking is the long-term path to more bits per chip.",
+            "industry": "Memory makers and research labs such as imec show stacked-cell and IGZO 2T0C designs; nothing is in production yet.",
+            "terms": [
+              "IGZO 2T0C",
+              "stacked DRAM cell",
+              "oxide semiconductor gain cell",
+              "1T1C 3D DRAM"
+            ]
+          }
         },
         {
           "id": "dram-reliability",
@@ -632,7 +783,18 @@
             "DRAM retention",
             "DRAM GIDL",
             "DRAM variable retention time"
-          ]
+          ],
+          "brief": {
+            "idea": "Retention is limited by junction leakage and GIDL; row hammer flips bits when a nearby word line is opened many times.",
+            "why": "Smaller cells make row hammer worse and retention tighter, and it is a security issue as well as a reliability one.",
+            "industry": "JEDEC added refresh management and per-row activation counting to DDR5, and vendors add on-die mitigation.",
+            "terms": [
+              "per row activation counting",
+              "RowPress",
+              "variable retention time",
+              "row hammer mitigation"
+            ]
+          }
         },
         {
           "id": "dram-periphery",
@@ -642,7 +804,17 @@
             "DRAM peripheral transistor",
             "LPDDR5",
             "DDR5 DRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "Sense amplifiers, periphery transistors and I/O set DRAM speed and power.",
+            "why": "LPDDR and DDR speeds keep rising for AI phones, PCs and servers, which pushes the periphery toward high-k metal gate.",
+            "industry": "LPDDR5X is shipping and LPDDR6 is coming; vendors move periphery to HKMG.",
+            "terms": [
+              "LPDDR6",
+              "HKMG DRAM periphery",
+              "DRAM sense amplifier offset"
+            ]
+          }
         }
       ],
       "features": [
@@ -822,7 +994,18 @@
             "SOT-MRAM",
             "magnetic tunnel junction",
             "spin-orbit torque memory"
-          ]
+          ],
+          "brief": {
+            "idea": "A magnetic tunnel junction stores the bit in its magnetisation and spin torque switches it; STT for embedded memory, SOT for faster caches.",
+            "why": "Embedded flash does not scale to advanced logic nodes, and MRAM does.",
+            "industry": "Foundries offer embedded MRAM at 22 nm-class nodes and below for microcontrollers and automotive.",
+            "terms": [
+              "embedded MRAM",
+              "SOT-MRAM cache",
+              "VCMA MRAM",
+              "MTJ reliability"
+            ]
+          }
         },
         {
           "id": "reram",
@@ -832,7 +1015,17 @@
             "RRAM",
             "resistive switching memory",
             "resistive random access memory"
-          ]
+          ],
+          "brief": {
+            "idea": "A conductive filament forms and breaks in an oxide, switching between low and high resistance.",
+            "why": "It is simple, CMOS-friendly embedded memory and a candidate for analog compute-in-memory.",
+            "industry": "Foundries offer embedded RRAM at 22 nm-class nodes, and IP companies license it.",
+            "terms": [
+              "embedded RRAM",
+              "RRAM variability",
+              "RRAM in-memory computing"
+            ]
+          }
         },
         {
           "id": "pcm",
@@ -842,7 +1035,18 @@
             "phase-change memory",
             "Ge2Sb2Te5 memory",
             "phase-change random access memory"
-          ]
+          ],
+          "brief": {
+            "idea": "A chalcogenide switches between amorphous (high resistance) and crystalline (low resistance) by heating.",
+            "why": "After standalone 3D XPoint ended, interest moved to embedded PCM and to analog in-memory computing.",
+            "industry": "Embedded PCM is offered for automotive microcontrollers, and research labs build analog AI chips on PCM.",
+            "terms": [
+              "embedded PCM",
+              "phase change analog in-memory",
+              "superlattice phase change",
+              "PCM resistance drift"
+            ]
+          }
         },
         {
           "id": "fefet",
@@ -853,7 +1057,18 @@
             "FeRAM",
             "ferroelectric memory",
             "HfZrO ferroelectric memory"
-          ]
+          ],
+          "brief": {
+            "idea": "Ferroelectric hafnium zirconium oxide stores the bit as polarisation, in a FeFET gate or a FeRAM capacitor.",
+            "why": "Hafnia is already in CMOS fabs, so ferroelectric memory can be dense, fast and non-volatile at advanced nodes.",
+            "industry": "Memory makers have shown hafnia ferroelectric DRAM-like memory, and foundries and labs work on embedded FeFET.",
+            "terms": [
+              "hafnium zirconium oxide",
+              "ferroelectric wake-up",
+              "NVDRAM",
+              "FeFET endurance"
+            ]
+          }
         },
         {
           "id": "nvm-cim",
@@ -863,7 +1078,17 @@
             "analog in-memory computing",
             "crossbar array",
             "in-memory computing RRAM"
-          ]
+          ],
+          "brief": {
+            "idea": "Store neural network weights as conductances in a crossbar and do the multiply-accumulate in place with Ohm's and Kirchhoff's laws.",
+            "why": "AI inference energy is dominated by moving weights, which compute-in-memory avoids.",
+            "industry": "Research labs and start-ups show analog and digital in-memory AI chips; products are early.",
+            "terms": [
+              "analog in-memory computing",
+              "crossbar array IR drop",
+              "in-memory computing transformer"
+            ]
+          }
         }
       ],
       "features": [
@@ -1051,7 +1276,17 @@
             "IGBT",
             "superjunction MOSFET",
             "trench power MOSFET"
-          ]
+          ],
+          "brief": {
+            "idea": "IGBTs use bipolar conductivity modulation for low on-state loss at high voltage; superjunction MOSFETs balance charge in the drift region.",
+            "why": "Silicon still ships most power devices, and it competes with SiC on cost in EVs, solar and drives.",
+            "industry": "Vendors keep improving trench-gate and reverse-conducting IGBTs and superjunction MOSFETs on 300 mm wafers.",
+            "terms": [
+              "reverse conducting IGBT",
+              "IGBT trench gate",
+              "superjunction"
+            ]
+          }
         },
         {
           "id": "power-reliability",
@@ -1061,7 +1296,17 @@
             "avalanche ruggedness",
             "power cycling",
             "power device reliability"
-          ]
+          ],
+          "brief": {
+            "idea": "A power device must survive short circuit, avalanche, cosmic rays, gate stress and thousands of thermal cycles.",
+            "why": "EVs and AI data-centre power supplies need long, stated lifetimes from newer devices such as SiC and GaN.",
+            "industry": "Automotive qualification (AEC-Q101, AQG 324) and data-centre reliability specs drive testing.",
+            "terms": [
+              "SiC gate oxide reliability",
+              "threshold voltage drift",
+              "cosmic ray failure power"
+            ]
+          }
         },
         {
           "id": "power-packaging",
@@ -1070,7 +1315,17 @@
             "power module packaging",
             "double-sided cooling",
             "power module thermal"
-          ]
+          ],
+          "brief": {
+            "idea": "The package sets heat removal, parasitic inductance and lifetime; sintered silver, double-sided cooling and embedded dies improve them.",
+            "why": "Fast-switching SiC and GaN and dense AI data-centre power push packages to their limits.",
+            "industry": "Module makers adopt silver sintering, double-sided cooling and low-inductance layouts for EV inverters and server power.",
+            "terms": [
+              "silver sintering",
+              "embedded die packaging",
+              "low inductance power module"
+            ]
+          }
         }
       ],
       "features": [
@@ -1238,7 +1493,18 @@
             "SiC MOSFET",
             "silicon carbide MOSFET",
             "4H-SiC"
-          ]
+          ],
+          "brief": {
+            "idea": "4H-SiC has a wide bandgap and high critical field, so thin drift layers block high voltage with low loss.",
+            "why": "800 V EV drivetrains, chargers and renewables use it, and 200 mm wafers and falling substrate prices widen its use.",
+            "industry": "Suppliers are moving to 200 mm wafers and new capacity, with Chinese makers growing fast and prices falling.",
+            "terms": [
+              "SiC trench MOSFET",
+              "SiC gate oxide",
+              "200 mm SiC",
+              "SiC bipolar degradation"
+            ]
+          }
         },
         {
           "id": "gan-hemt",
@@ -1247,7 +1513,18 @@
             "GaN HEMT",
             "AlGaN/GaN",
             "GaN power transistor"
-          ]
+          ],
+          "brief": {
+            "idea": "A two-dimensional electron gas at the AlGaN/GaN interface gives a fast, low-loss lateral switch.",
+            "why": "Chargers, data-centre power supplies and higher-voltage AI rack power need fast, efficient switches.",
+            "industry": "GaN-on-silicon is moving to 300 mm wafers, bidirectional GaN switches are appearing, and the foundry landscape is changing.",
+            "terms": [
+              "300 mm GaN-on-Si",
+              "bidirectional GaN switch",
+              "GaN dynamic on-resistance",
+              "p-GaN gate"
+            ]
+          }
         },
         {
           "id": "gan-vertical",
@@ -1256,7 +1533,17 @@
             "vertical GaN",
             "GaN-on-GaN",
             "GaN trench MOSFET"
-          ]
+          ],
+          "brief": {
+            "idea": "Current flows vertically through a thick GaN drift layer, so GaN can reach kilovolt ratings like SiC.",
+            "why": "It could bring GaN's speed to voltages lateral HEMTs cannot reach.",
+            "industry": "It is still mostly research and start-ups, limited by the cost of GaN substrates; GaN-on-silicon and engineered substrates are being tried.",
+            "terms": [
+              "vertical GaN on silicon",
+              "GaN fin transistor",
+              "GaN PN diode"
+            ]
+          }
         },
         {
           "id": "uwbg",
@@ -1266,7 +1553,18 @@
             "gallium oxide transistor",
             "AlN transistor",
             "diamond transistor"
-          ]
+          ],
+          "brief": {
+            "idea": "Gallium oxide, AlN, AlGaN and diamond have bandgaps above 4.5 eV, for even higher breakdown fields than SiC and GaN.",
+            "why": "Gallium oxide substrates can be grown from the melt, which could make them cheap.",
+            "industry": "Gallium oxide start-ups and labs make diodes and transistors; the open problems are p-type doping and heat removal.",
+            "terms": [
+              "beta-Ga2O3 MOSFET",
+              "AlGaN channel transistor",
+              "diamond transistor",
+              "Ga2O3 thermal management"
+            ]
+          }
         }
       ],
       "features": [
@@ -1446,5 +1744,11 @@
       "name": "Power devices",
       "blurb": "High-power silicon and wide-bandgap devices."
     }
-  ]
+  ],
+  "brief_asof": "2026-06",
+  "trend": {
+    "years_from": 2016,
+    "older_window_years": 3,
+    "extra_per_term": 25
+  }
 }

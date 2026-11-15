@@ -75,6 +75,25 @@ export class Sources {
     return (j && j.results || []).map(toPaper);
   }
 
+  // Papers per publication year for a set of phrases (OpenAlex group_by), for the trend chart.
+  async yearCounts(phrases, from) {
+    const p = new URLSearchParams({ search: phrases.map((q) => `"${q}"`).join(" OR "), filter: `from_publication_date:${from}-01-01,type:article|review`, group_by: "publication_year" });
+    if (this.mailto) p.set("mailto", this.mailto);
+    return this.getJson(OPENALEX + "?" + p.toString());
+  }
+
+  // Papers from an earlier window, to see which terms are new.
+  async sample(phrases, { from, to, perPage = 100 } = {}) {
+    const j = await this.oa({ search: phrases.map((q) => `"${q}"`).join(" OR "), filter: `has_abstract:true,type:article|review,from_publication_date:${from},to_publication_date:${to}`, sort: "cited_by_count:desc", "per-page": String(perPage) });
+    return (j && j.results || []).map(toPaper);
+  }
+
+  // A text resource (an RSS feed). Returns "" on failure.
+  async text(url) {
+    const r = await this.getRaw(url);
+    return r ? new TextDecoder().decode(r.buf) : "";
+  }
+
   async byIds(ids) {
     const out = [];
     const clean = [...new Set(ids.map(shortId).filter(Boolean))];

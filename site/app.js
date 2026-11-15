@@ -5,7 +5,8 @@ import { pdfText } from "./lib/fulltext.js";
 import { buildTree } from "./lib/tree.js";
 import { analyzeTree, coverage, guessCategory, keepRegexes, profile, topicGaps, GAP_TYPES, STAGES } from "./lib/engine.js";
 import { findDois, cleanText } from "./lib/text.js";
-import { PROVIDERS, analyzeWithAI, complete, buildPrompt, CHAT_SYSTEM } from "./lib/ai.js";
+import { PROVIDERS, analyzeWithAI, complete, buildPrompt, parseJson, CHAT_SYSTEM } from "./lib/ai.js";
+import { ruleBriefing, trendPrompt, trendTerms, TREND_SYSTEM, TREND_SCHEMA } from "./lib/trends.js";
 
 const app = document.getElementById("app");
 const overlayRoot = document.getElementById("overlay-root");
@@ -39,7 +40,7 @@ const noData = () => empty("No data yet. The first scheduled run fills this in, 
 function stageMark(stage) { return `<span class="stage ${stage}"><i aria-hidden="true"></i>${esc(STAGES[stage].short)}</span>`; }
 function paperMeta(p, cat) {
   const pr = profile(p, cat, D.cfg);
-  return `<div class="meta">${stageMark(pr.stage)}${p.tx ? '<span class="tx">TRANSACTIONS</span>' : ""}${p.ft ? `<span class="badge oa" title="Judged from the full text: ${esc(p.ft.source)}">FULL TEXT READ</span>` : p.oa ? '<span class="badge oa">OPEN ACCESS</span>' : ""}<span class="src">${esc(p.venue || "")}</span>${p.date ? `<span class="dot">${esc(fmtDate(p.date))}</span>` : p.year ? `<span class="dot">${p.year}</span>` : ""}${p.cited_by ? `<span class="dot">cited ${p.cited_by}×</span>` : ""}</div>`;
+  return `<div class="meta">${stageMark(pr.stage)}${p.tx ? '<span class="tx">TRANSACTIONS</span>' : ""}${p.ft ? `<span class="badge oa" title="Judged from the full text: ${esc(p.ft.source)}">FULL TEXT READ</span>` : p.oa ? '<span class="badge oa">OPEN ACCESS</span>' : ""}${p.via ? `<span class="badge via" title="Found by the briefing's search phrase: ${esc(p.via)}">VIA BRIEFING</span>` : ""}<span class="src">${esc(p.venue || "")}</span>${p.date ? `<span class="dot">${esc(fmtDate(p.date))}</span>` : p.year ? `<span class="dot">${p.year}</span>` : ""}${p.cited_by ? `<span class="dot">cited ${p.cited_by}×</span>` : ""}</div>`;
 }
 function paperCard(p, cat, opts = {}) {
   const why = p.why && (p.why.context || (p.why.intents || []).length) ? `<div class="why">${p.why.intents && p.why.intents.length ? "<b>" + esc(p.why.intents.join(", ")) + "</b> " : ""}${esc(p.why.context || "")}</div>` : "";
@@ -272,7 +273,7 @@ async function category(id) {
     const it = ic && ic.topics.find((x) => x.id === t.id);
     return `<a class="card hover tile" href="#/t/${t.id}"><div class="media">${art(cat.art, t.id)}</div><div class="body"><h3>${esc(t.name)}</h3>
       <p>${it && it.top_gap ? "Top gap: " + esc(it.top_gap) : esc(t.search.join(" · "))}</p>
-      <div class="num"><span><b>${it ? it.papers : 0}</b>papers</span><span><b>${it ? it.tx : 0}</b>Transactions</span><span><b>${it ? it.gaps : 0}</b>gaps</span></div></div></a>`;
+      <div class="num"><span><b>${it ? it.papers : 0}</b>papers</span><span><b>${it ? it.tx : 0}</b>Transactions</span><span><b>${it ? it.gaps : 0}</b>gaps</span>${it && it.trend && it.trend.yoy != null ? `<span title="Papers per year, last full year against the one before"><b>${it.trend.yoy >= 0 ? "+" : "−"}${Math.abs(it.trend.yoy)}%</b>per year</span>` : ""}</div></div></a>`;
   }).join("");
   app.innerHTML = `${crumbs([["Home", "#/"], [cat.name]])}${banner("Field", cat.name, esc(cat.blurb), cat.art)}
     <section>${sectionTitle("Topics")}<div class="tiles big">${tiles}</div></section>
@@ -280,12 +281,75 @@ async function category(id) {
     <p class="small muted" style="margin-top:.7rem">Grey tags are physical effects (missing ones become "add this to the TCAD model" gaps); red tags are techniques that can move between topics. Edit them in <code>site/config.json</code>.</p></section>`;
 }
 
+// ------------------------------------------------------------------ why it's hot / industry now
+function yearChart(years, now = new Date()) {
+  if (!years || years.length < 2) return "";
+  const W = 560, H = 190, padL = 8, padR = 8, padT = 22, padB = 24;
+  const max = Math.max(...years.map((y) => y.count), 1);
+  const n = years.length, slot = (W - padL - padR) / n, bw = Math.max(6, Math.min(34, slot - 6));
+  const cy = now.getFullYear();
+  const lastFull = [...years].reverse().find((y) => y.year < cy);
+  const bars = years.map((y, i) => {
+    const h = Math.max(2, ((H - padT - padB) * y.count) / max), x = padL + i * slot + (slot - bw) / 2, yTop = H - padB - h, r = Math.min(4, bw / 2, h);
+    const partial = y.year === cy;
+    const d = `M${x},${H - padB}V${yTop + r}Q${x},${yTop} ${x + r},${yTop}H${x + bw - r}Q${x + bw},${yTop} ${x + bw},${yTop + r}V${H - padB}Z`;
+    const label = (lastFull && y.year === lastFull.year) || partial ? `<text class="v" x="${x + bw / 2}" y="${yTop - 6}" text-anchor="middle">${y.count}${partial ? " so far" : ""}</text>` : "";
+    const tick = n <= 12 || i % 2 === (n - 1) % 2 ? `<text class="t" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${n > 8 ? "’" + String(y.year).slice(2) : y.year}</text>` : "";
+    return `<g class="bar${partial ? " partial" : ""}"><title>${y.year}: ${y.count} papers${partial ? " (year so far)" : ""}</title><rect class="hit" x="${padL + i * slot}" y="${padT - 18}" width="${slot}" height="${H - padT - padB + 18}"></rect><path d="${d}"></path>${label}${tick}</g>`;
+  }).join("");
+  return `<svg class="yearchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Papers per year: ${years.map((y) => y.year + " " + y.count).join(", ")}"><line class="base" x1="${padL}" x2="${W - padR}" y1="${H - padB}" y2="${H - padB}"></line>${bars}</svg>`;
+}
+function trendSection(topic, cat, trend) {
+  const key = "trend-" + topic.id;
+  const mine = mem.ai[key];
+  const t = mine && mine.why_hot ? { ...trend, ...mine } : trend || ruleBriefing(topic, {});
+  const s = aiSettings();
+  const has = s && (s.key || s.provider === "compatible");
+  const g = t.growth || {};
+  const by = mine && mine.why_hot ? `<span class="badge ai">AI</span> written with your key` : t.by === "ai" ? `<span class="badge ai">AI</span> written by ${esc(t.model || "Claude")} in the weekly build` : `background written by hand (${esc(D.cfg.brief_asof || "")}) plus this week's numbers`;
+  const stat = (v, l) => `<div class="card stat"><div class="big">${v}</div><div class="lbl">${esc(l)}</div></div>`;
+  const yoy = g.yoy == null ? "" : stat((g.yoy >= 0 ? "+" : "−") + Math.abs(g.yoy) + "%", `papers in ${g.last_year} vs ${g.last_year - 1}`);
+  const tri = g.three_year == null ? "" : stat((g.three_year >= 0 ? "+" : "−") + Math.abs(g.three_year) + "%", `vs ${g.last_year - 3}`);
+  return `<section class="trend" id="${esc(key)}">${sectionTitle("Why it’s hot · Industry now", `<span class="small muted">${by}</span>`)}
+    <div class="trend-grid">
+      <div class="card pad"><span class="eyebrow">Why it’s hot</span><p>${esc(t.why_hot)}</p></div>
+      <div class="card pad"><span class="eyebrow">The core idea</span><p>${esc(t.core_idea)}</p></div>
+      <div class="card pad"><span class="eyebrow">What industry is doing</span><p>${esc(t.industry_now)}</p></div>
+    </div>
+    ${(t.years && t.years.length > 1) || yoy ? `<div class="trend-row">
+      <div class="card pad"><span class="eyebrow">Papers per year (OpenAlex)</span>${yearChart(t.years)}${yoy || tri ? `<div class="stats">${yoy}${tri}</div>` : ""}</div>
+      <div class="card pad"><span class="eyebrow">Rising in recent papers</span>${(t.rising || []).length ? `<p class="small muted">Share of this topic’s recent papers that use the term, against papers from ${esc((t.older_window || [""])[0].slice(0, 4))}.</p><ul class="rising">${t.rising.slice(0, 8).map((r) => `<li><span>${esc(r.term)}</span><b>${r.share}%</b><i>${r.older ? r.ratio + "×" : "new"}</i></li>`).join("")}</ul>` : '<p class="small muted">Not enough recent papers to compare yet.</p>'}</div>
+    </div>` : ""}
+    ${(t.news || []).length ? `<div class="card pad news"><span class="eyebrow">In the news, last two months</span><ul>${t.news.map((n) => `<li>${ext(n.url, n.title)}<span class="small muted">${esc([n.source, n.date && fmtDate(n.date)].filter(Boolean).join(" · "))}</span></li>`).join("")}</ul><p class="small muted">Headlines from Google News. They are short and can be promotional, so read the article before you rely on one.</p></div>` : ""}
+    ${(t.open_questions || []).length ? `<div class="card pad"><span class="eyebrow">Open questions</span><ul>${t.open_questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ul></div>` : ""}
+    ${(t.search_terms || []).length ? `<p class="small muted">Extra search phrases from this briefing (papers found with them are marked <span class="badge via">VIA BRIEFING</span>): ${t.search_terms.map((x) => `<span class="tag">${esc(x)}</span>`).join(" ")}</p>` : ""}
+    ${mine && mine.error ? `<div class="notice err">${esc(mine.error)}</div>` : ""}
+    <div><button class="btn ghost" type="button" data-trend-run ${has ? "" : "disabled"}>${has ? "Rewrite this briefing with your AI key" : "Add an AI key to rewrite this briefing"}</button>${has ? "" : ' <a class="small" href="#/ai">Add a key</a>'}</div>
+  </section>`;
+}
+function wireTrend(topic, cat, trend, pool, rerender) {
+  const btn = app.querySelector("[data-trend-run]");
+  if (!btn || btn.disabled) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Writing the briefing…';
+    const inputs = { years: (trend && trend.years) || [], rising: (trend && trend.rising) || [], news: (trend && trend.news) || [], titles: pool.slice(0, 30).map((p) => p.title) };
+    try {
+      const sys = TREND_SYSTEM + (aiSettings().provider === "anthropic" ? "" : "\nReply with JSON only, matching this schema: " + JSON.stringify(TREND_SCHEMA));
+      const r = parseJson(await complete(aiSettings(), sys, trendPrompt(topic, cat, inputs), { maxTokens: 6000 }));
+      if (!r || !r.why_hot) throw new Error("the reply was not in the expected format");
+      mem.ai["trend-" + topic.id] = { ...r, search_terms: trendTerms(topic, inputs.rising, r.search_terms || []) };
+    } catch (e) { mem.ai["trend-" + topic.id] = { error: "AI request failed: " + e.message }; }
+    rerender();
+  });
+}
+
 async function topicPage(id) {
   const { topic, cat } = topicById(id);
   if (!topic) return notFound();
   app.innerHTML = '<p class="muted">Loading…</p>';
   const [data, catPool] = [await loadTopic(id), await categoryPool(cat)];
-  if (!data) { app.innerHTML = crumbs([["Home", "#/"], [cat.name, "#/c/" + cat.id], [topic.name]]) + banner(cat.name, topic.name, "", cat.art) + noData(); return; }
+  if (!data) { app.innerHTML = crumbs([["Home", "#/"], [cat.name, "#/c/" + cat.id], [topic.name]]) + banner(cat.name, topic.name, "", cat.art) + trendSection(topic, cat, null) + noData(); wireTrend(topic, cat, null, [], () => topicPage(id)); return; }
   const lookupAll = makeLookup(data.seeds, data.pool);
   const allGaps = [], froms = [];
   for (const tree of data.seeds) {
@@ -302,6 +366,7 @@ async function topicPage(id) {
   app.innerHTML = `${crumbs([["Home", "#/"], [cat.name, "#/c/" + cat.id], [topic.name]])}
     ${banner(cat.name, topic.name, `Recent papers since ${esc(fmtDate(data.since))}, with citation trees for the ${data.seeds.length} newest Transactions-first papers. Updated ${esc(fmtDate(data.updated))}.`, cat.art,
       `<div class="stats"><div class="card stat"><div class="big">${pool.length}</div><div class="lbl">recent papers</div></div><div class="card stat"><div class="big">${pool.filter((p) => p.tx).length}</div><div class="lbl">IEEE Transactions</div></div><div class="card stat"><div class="big">${counts.sim}</div><div class="lbl">simulation only</div></div><div class="card stat"><div class="big">${allGaps.length}</div><div class="lbl">gaps found</div></div></div>`)}
+    ${trendSection(topic, cat, data.trend)}
     <section>${sectionTitle("Research gaps")}${gapGrid(allGaps, lookupAll, cat, froms)}</section>
     <section>${sectionTitle("Citation trees")}<div class="list">${data.seeds.map((t) => paperCard(t.seed, cat, { href: `#/p/${id}/${t.seed.id}`, label: `${t.references.length} references · ${t.citers.length} citing · ${t.base_citers.length} building on the base paper` })).join("") || empty("No seed papers yet.")}</div></section>
     <section>${sectionTitle("Where the field is thin")}<p class="small muted">How many recent papers in this topic touch each effect, split by stage. Pale or empty cells are where nobody has gone yet.</p>
@@ -310,6 +375,7 @@ async function topicPage(id) {
     <section>${sectionTitle("Recent papers", `<div class="chips" id="stage-chips">${["all", "sim", "fab", "circuit", "unknown"].map((s) => `<button type="button" class="chip${s === st ? " active" : ""}" data-st="${s}">${s === "all" ? "All" : esc(STAGES[s].short)}<span class="count">${s === "all" ? pool.length : counts[s]}</span></button>`).join("")}</div>`)}
       <div class="list">${shown.slice(0, 60).map((p) => paperCard(p, cat)).join("") || empty("No papers at this stage.")}</div></section>`;
   app.querySelectorAll("#stage-chips .chip").forEach((b) => b.addEventListener("click", () => { store.set("gf-topic-stage", b.dataset.st, true); topicPage(id); }));
+  wireTrend(topic, cat, data.trend, pool, () => topicPage(id));
 }
 function covTable(rows) {
   const max = Math.max(1, ...rows.flatMap((r) => [r.sim, r.fab, r.circuit]));
