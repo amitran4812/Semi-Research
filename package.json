@@ -1,0 +1,16 @@
+{
+  "name": "semi-research-gap-finder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Finds research gaps in NAND, DRAM, power and wide-bandgap device papers from their citation trees.",
+  "type": "module",
+  "scripts": {
+    "build-data": "node pipeline/run.mjs",
+    "serve": "node pipeline/serve.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
+  }
+}

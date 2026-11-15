@@ -1,0 +1,164 @@
+{
+  "title": "Gap Finder",
+  "lookback_days": 150,
+  "seeds_per_topic": 3,
+  "tree": {
+    "references": 14,
+    "citers": 15,
+    "base_citers": 15,
+    "ref_citers_for": 3,
+    "ref_citers": 8
+  },
+  "stage_terms": {
+    "sim": ["tcad", "sentaurus", "silvaco", "atlas simulation", "technology computer-aided design", "numerical simulation", "device simulation", "simulation study", "simulated", "simulations", "monte carlo", "first-principles", "density functional", "ab initio", "finite element", "comsol", "drift-diffusion", "non-equilibrium green"],
+    "fab": ["fabricated", "fabrication", "measured", "measurements", "experimentally", "experimental results", "experimental data", "prototype", "wafer", "test chip", "we demonstrate", "demonstrated", "grown", "deposited", "characterized", "silicon data", "on-wafer", "hardware measurements", "manufactured", "test vehicle"],
+    "circuit": ["circuit", "circuits", "spice", "compact model", "verilog-a", "page buffer", "sense amplifier", "inverter", "ring oscillator", "gate driver", "converter", "system-level", "array-level", "ssd", "controller", "half-bridge", "boost converter", "double pulse", "double-pulse", "macro", "peripheral circuit", "netlist", "cadence", "hspice"]
+  },
+  "categories": [
+    {
+      "id": "nand",
+      "name": "NAND flash",
+      "blurb": "3D NAND cells, reliability, page buffers and cache, ferroelectric NAND and multi-level cells.",
+      "art": "nand",
+      "venues_issn": ["0018-9383", "1530-4388", "0741-3106", "0018-9200", "2168-6734", "1549-8328"],
+      "topics": [
+        {"id": "3d-nand-cell", "name": "3D NAND cell & charge trap", "search": ["3D NAND", "charge trap flash", "vertical NAND"]},
+        {"id": "nand-reliability", "name": "NAND reliability", "search": ["NAND flash reliability", "NAND retention", "NAND endurance", "read disturb NAND"]},
+        {"id": "nand-cache-peripheral", "name": "Page buffer, cache & peripherals", "search": ["NAND page buffer", "NAND cache program", "CMOS under array", "NAND sense amplifier"]},
+        {"id": "fe-nand", "name": "Ferroelectric NAND", "search": ["ferroelectric NAND", "FeFET NAND", "ferroelectric vertical NAND"]},
+        {"id": "nand-mlc", "name": "QLC, PLC & multi-level cells", "search": ["QLC NAND", "PLC NAND", "multi-level cell flash", "penta-level cell"]}
+      ],
+      "features": [
+        {"id": "retention", "name": "Data retention", "kind": "physics", "terms": ["retention", "charge loss", "data loss"], "tcad": "Add trap-assisted charge loss: enable nonlocal tunneling and trap emission (Sentaurus Device: Traps with Tunneling, nonlocal path) and run a bake-temperature sweep."},
+        {"id": "endurance", "name": "P/E cycling endurance", "kind": "physics", "terms": ["endurance", "p/e cycling", "program/erase cycling", "cycling"], "tcad": "Model interface/oxide trap generation versus cycles (trap generation rate tied to injected charge) and re-run Vt windows at 1k/3k/10k cycles."},
+        {"id": "disturb", "name": "Program & read disturb", "kind": "physics", "terms": ["read disturb", "program disturb", "pass disturb", "disturbance"], "tcad": "Simulate the unselected string at Vpass/Vread with hot-carrier and FN injection models on, including the neighbouring word lines."},
+        {"id": "interference", "name": "Cell-to-cell interference", "kind": "physics", "terms": ["interference", "coupling", "lateral migration", "lateral charge migration", "cell-to-cell"], "tcad": "Use a 3-cell (or 5-cell) string structure so charge in neighbours and lateral migration in the shared charge-trap layer is captured."},
+        {"id": "temperature", "name": "Temperature & cross-temperature", "kind": "physics", "terms": ["temperature", "cross-temperature", "thermal", "cryogenic", "high-temperature"], "tcad": "Turn on temperature-dependent mobility, trap emission and the poly-Si grain-boundary model, and sweep -40 °C to 125 °C."},
+        {"id": "poly-channel", "name": "Poly-Si channel grain boundaries", "kind": "physics", "terms": ["grain boundary", "grain boundaries", "polysilicon channel", "poly-si channel", "macaroni"], "tcad": "Add discrete grain boundaries with acceptor/donor trap densities in the poly-Si channel (randomised for variability)."},
+        {"id": "variability", "name": "Variability & statistics", "kind": "physics", "terms": ["variability", "variation", "statistical", "random telegraph", "rtn", "distribution"], "tcad": "Run a statistical (Monte Carlo) set: random dopants, grain-boundary positions and trap counts, then report Vt sigma."},
+        {"id": "scaling", "name": "Layer stacking & scaling", "kind": "technique", "terms": ["layer", "stack", "word line pitch", "scaling", "high aspect ratio", "channel hole", "300 layers", "multi-deck"], "tcad": "Extend the structure to the target layer count / pitch and check channel-hole taper and word-line resistance effects."},
+        {"id": "cache", "name": "Cache program / page buffer", "kind": "technique", "terms": ["cache", "page buffer", "cache read", "cache program", "latch"], "tcad": "Device TCAD does not cover this; co-simulate the cell with a page-buffer netlist (see the circuit step)."},
+        {"id": "cua", "name": "CMOS under array", "kind": "technique", "terms": ["cmos under array", "cua", "periphery under cell", "puc", "wafer bonding", "cmos bonded array"], "tcad": "Add the thermal budget of the array process to the periphery transistors and check their drift."},
+        {"id": "ferroelectric", "name": "Ferroelectric switching", "kind": "technique", "terms": ["ferroelectric", "hfzro", "hzo", "fefet", "polarization"], "tcad": "Use a multi-domain ferroelectric model (e.g. Preisach / nucleation-limited switching) instead of a single-domain one."},
+        {"id": "ml-ecc", "name": "ECC, sensing & ML read schemes", "kind": "technique", "terms": ["ecc", "ldpc", "error correction", "machine learning", "neural network", "read reference", "read retry"], "tcad": "Generate Vt distributions from TCAD and feed them to an ECC / read-retry model to report raw bit error rate."}
+      ],
+      "eda": {
+        "compact_model": "Verilog-A charge-trap cell model (Vt shift vs. program pulses, retention and disturb terms) fitted to the paper's data; BSIM4/BSIM-CMG for the select gates and periphery.",
+        "tools": ["Cadence Virtuoso + Spectre", "Synopsys HSPICE / PrimeSim", "ngspice or Xyce with OpenVAF (free)", "Synopsys Sentaurus or Silvaco for TCAD-to-model extraction"],
+        "steps": [
+          "Extract a compact cell model from the device data (Vt vs. pulse count, Id-Vg, retention slope) and write it in Verilog-A.",
+          "Build a string of 4-8 cells plus select gates and a bit line with its real RC load.",
+          "Add a page buffer (sense latch, cache latch) and a simple ISPP program controller.",
+          "Simulate program, verify, read and cache-read timing; report tPROG, tR, energy per bit and the read margin.",
+          "Re-run with retention / disturb shifts applied to show how the device change affects bit errors."
+        ]
+      }
+    },
+    {
+      "id": "dram",
+      "name": "DRAM",
+      "blurb": "DRAM cells and capacitors, 3D and capacitorless DRAM, retention and row hammer, and HBM.",
+      "art": "dram",
+      "venues_issn": ["0018-9383", "1530-4388", "0741-3106", "0018-9200", "2168-6734", "1549-8328"],
+      "topics": [
+        {"id": "dram-cell", "name": "DRAM cell & capacitor", "search": ["DRAM cell", "DRAM capacitor", "buried channel array transistor", "DRAM access transistor"]},
+        {"id": "3d-dram", "name": "3D & capacitorless DRAM", "search": ["3D DRAM", "capacitorless DRAM", "2T0C", "IGZO DRAM"]},
+        {"id": "dram-reliability", "name": "Retention, row hammer & reliability", "search": ["row hammer", "DRAM retention", "DRAM GIDL", "DRAM variable retention time"]},
+        {"id": "hbm", "name": "HBM & DRAM interfaces", "search": ["high bandwidth memory", "HBM DRAM", "DRAM interface"]}
+      ],
+      "features": [
+        {"id": "retention", "name": "Retention & leakage", "kind": "physics", "terms": ["retention", "leakage", "refresh"], "tcad": "Turn on band-to-band and trap-assisted tunneling (Hurkx / nonlocal BTBT) at the storage-node junction and compute retention time from leakage."},
+        {"id": "gidl", "name": "GIDL", "kind": "physics", "terms": ["gidl", "gate-induced drain leakage", "band-to-band"], "tcad": "Enable nonlocal band-to-band tunneling with calibrated parameters and sweep word-line negative bias."},
+        {"id": "rowhammer", "name": "Row hammer / row press", "kind": "physics", "terms": ["row hammer", "rowhammer", "row press", "disturb"], "tcad": "Simulate two neighbouring cells with transient aggressor word-line toggling and trap capture/emission at the STI and gate edge."},
+        {"id": "vrt", "name": "Variable retention time & traps", "kind": "physics", "terms": ["variable retention", "vrt", "trap", "random telegraph"], "tcad": "Add individual traps with capture/emission time constants near the junction and run a statistical set."},
+        {"id": "temperature", "name": "Temperature", "kind": "physics", "terms": ["temperature", "thermal", "high-temperature", "cryogenic"], "tcad": "Sweep temperature with temperature-dependent tunneling and SRH lifetimes on."},
+        {"id": "variability", "name": "Variability", "kind": "physics", "terms": ["variability", "variation", "statistical", "distribution", "mismatch"], "tcad": "Run Monte Carlo on random dopants, work-function grains and capacitor geometry."},
+        {"id": "capacitor", "name": "Capacitor dielectric", "kind": "technique", "terms": ["capacitor", "high-k", "zro2", "tio2", "dielectric", "mim"], "tcad": "Model the capacitor stack with its real permittivity and leakage (Poole-Frenkel / TAT) instead of an ideal capacitor."},
+        {"id": "oxide-semi", "name": "Oxide semiconductor channel (IGZO)", "kind": "technique", "terms": ["igzo", "oxide semiconductor", "amorphous oxide", "ito", "in2o3"], "tcad": "Use a density-of-states (tail + deep states) model for the amorphous oxide channel and its oxygen-vacancy donors."},
+        {"id": "vertical", "name": "Vertical / 3D stacking", "kind": "technique", "terms": ["vertical", "3d dram", "stacked", "monolithic", "vertical channel"], "tcad": "Build the vertical or stacked structure in 3D and check floating-body and coupling effects between layers."},
+        {"id": "gain-cell", "name": "Gain cell (2T0C / 3T)", "kind": "technique", "terms": ["2t0c", "gain cell", "3t0c", "capacitorless"], "tcad": "Co-simulate read and write transistors and the storage node charge in mixed-mode TCAD."},
+        {"id": "sensing", "name": "Sense margin & sensing scheme", "kind": "technique", "terms": ["sense amplifier", "sense margin", "sensing", "bit line"], "tcad": "Mixed-mode simulation of the cell plus the bit line and a sense amplifier."}
+      ],
+      "eda": {
+        "compact_model": "BSIM4 / BSIM-CMG access transistor (or an RPI / oxide-TFT model for IGZO) plus a leaky storage capacitor, fitted to the paper's I-V and retention data.",
+        "tools": ["Cadence Virtuoso + Spectre", "Synopsys HSPICE / PrimeSim", "ngspice or Xyce (free)", "CACTI / DRAMsim3 / Ramulator for array and system level"],
+        "steps": [
+          "Fit a compact model for the access device and the storage node leakage.",
+          "Build a sub-array: cells on a bit line with the real bit-line capacitance, plus a latch-type sense amplifier.",
+          "Simulate write, read, restore and refresh; report sense margin, tRCD/tRAS and retention at temperature.",
+          "Feed the timing and energy into CACTI or DRAMsim3 to show the system-level benefit."
+        ]
+      }
+    },
+    {
+      "id": "power",
+      "name": "High-power devices",
+      "blurb": "IGBTs and silicon power MOSFETs, ruggedness and reliability, and power modules.",
+      "art": "power-devices",
+      "venues_issn": ["0018-9383", "0885-8993", "1530-4388", "0741-3106", "0278-0046", "2168-6777"],
+      "topics": [
+        {"id": "si-igbt", "name": "IGBTs & Si power MOSFETs", "search": ["IGBT", "superjunction MOSFET", "trench power MOSFET"]},
+        {"id": "power-reliability", "name": "Ruggedness & reliability", "search": ["short-circuit robustness", "avalanche ruggedness", "power cycling", "power device reliability"]},
+        {"id": "power-packaging", "name": "Power modules & packaging", "search": ["power module packaging", "double-sided cooling", "power module thermal"]}
+      ],
+      "features": [
+        {"id": "self-heating", "name": "Self-heating & thermal", "kind": "physics", "terms": ["self-heating", "thermal", "junction temperature", "thermal resistance"], "tcad": "Use the thermodynamic (lattice temperature) model with a realistic heatsink boundary instead of isothermal simulation."},
+        {"id": "breakdown", "name": "Breakdown & field termination", "kind": "physics", "terms": ["breakdown", "edge termination", "electric field", "blocking"], "tcad": "Include the edge termination region in the structure and use impact ionisation (e.g. van Overstraeten) for breakdown."},
+        {"id": "short-circuit", "name": "Short-circuit robustness", "kind": "physics", "terms": ["short-circuit", "short circuit", "withstand time"], "tcad": "Run a mixed-mode short-circuit transient with the thermal model and metal melting limits."},
+        {"id": "avalanche", "name": "Avalanche / UIS", "kind": "physics", "terms": ["avalanche", "unclamped inductive", "uis", "ruggedness"], "tcad": "Simulate unclamped inductive switching in mixed mode and look for current filamentation."},
+        {"id": "latch-up", "name": "Latch-up & parasitic BJT", "kind": "physics", "terms": ["latch-up", "latchup", "parasitic bipolar", "parasitic thyristor"], "tcad": "Model the full cell including the parasitic thyristor path and sweep current density."},
+        {"id": "dynamic", "name": "Switching transients & losses", "kind": "physics", "terms": ["switching loss", "turn-off", "turn-on", "tail current", "dv/dt", "di/dt", "switching"], "tcad": "Run mixed-mode double-pulse tests with realistic gate resistance and stray inductance."},
+        {"id": "temperature", "name": "High-temperature operation", "kind": "physics", "terms": ["temperature", "high-temperature", "175", "200 °c"], "tcad": "Sweep temperature with temperature-dependent lifetime, mobility and impact ionisation."},
+        {"id": "power-cycling", "name": "Power cycling & lifetime", "kind": "technique", "terms": ["power cycling", "lifetime", "bond wire", "solder fatigue", "thermal cycling"], "tcad": "Couple electro-thermal results to an FEM thermo-mechanical model (e.g. COMSOL / ANSYS) for solder and bond-wire stress."},
+        {"id": "packaging", "name": "Packaging & parasitics", "kind": "technique", "terms": ["package", "module", "stray inductance", "parasitic inductance", "sintered", "double-sided"], "tcad": "Extract package parasitics (Q3D / FastHenry) and include them in the mixed-mode circuit."},
+        {"id": "gate-drive", "name": "Gate drive & control", "kind": "technique", "terms": ["gate driver", "gate drive", "active gate", "gate resistance"], "tcad": "Replace the ideal gate source with a gate driver model in mixed mode."}
+      ],
+      "eda": {
+        "compact_model": "Physics-based IGBT / MOSFET compact model (e.g. Hefner IGBT or a fitted BSIM / MOS level model with thermal network) fitted to the paper's static and switching data.",
+        "tools": ["LTspice or SIMetrix/SIMPLIS", "PLECS or PSIM for converter-level loss and thermal", "Cadence PSpice / Spectre", "ANSYS Q3D or COMSOL for package parasitics and thermal"],
+        "steps": [
+          "Fit a compact model with a Foster/Cauer thermal network from the paper's I-V, C-V and switching curves.",
+          "Build a double-pulse test bench with the measured stray inductance and a real gate driver.",
+          "Put the device in a target converter (boost, half-bridge inverter) and compute losses and efficiency over load.",
+          "Run a mission-profile thermal simulation to estimate junction temperature swing and lifetime."
+        ]
+      }
+    },
+    {
+      "id": "wbg",
+      "name": "Wide-bandgap devices",
+      "blurb": "SiC MOSFETs, GaN HEMTs, vertical GaN, and ultra-wide-bandgap Ga₂O₃, AlN and diamond.",
+      "art": "wbg",
+      "venues_issn": ["0018-9383", "0885-8993", "1530-4388", "0741-3106", "2168-6734", "2168-6777"],
+      "topics": [
+        {"id": "sic-mosfet", "name": "SiC MOSFETs", "search": ["SiC MOSFET", "silicon carbide MOSFET", "4H-SiC"]},
+        {"id": "gan-hemt", "name": "GaN HEMTs", "search": ["GaN HEMT", "AlGaN/GaN", "GaN power transistor"]},
+        {"id": "gan-vertical", "name": "Vertical GaN", "search": ["vertical GaN", "GaN-on-GaN", "GaN trench MOSFET"]},
+        {"id": "uwbg", "name": "Ga₂O₃ & ultra-wide bandgap", "search": ["Ga2O3", "gallium oxide transistor", "AlN transistor", "diamond transistor"]}
+      ],
+      "features": [
+        {"id": "self-heating", "name": "Self-heating & thermal", "kind": "physics", "terms": ["self-heating", "thermal", "junction temperature", "thermal conductivity", "channel temperature"], "tcad": "Turn on the lattice-temperature model with anisotropic thermal conductivity and the substrate / heat-spreader stack."},
+        {"id": "trapping", "name": "Trapping & current collapse", "kind": "physics", "terms": ["current collapse", "dynamic on-resistance", "dynamic ron", "trapping", "traps", "buffer trap", "surface trap"], "tcad": "Add buffer (carbon / iron) and surface donor traps with their energy levels and run transient off-to-on switching."},
+        {"id": "vth-instability", "name": "Threshold instability (BTI)", "kind": "physics", "terms": ["threshold voltage instability", "bti", "pbti", "nbti", "threshold shift", "gate stress"], "tcad": "Model border/interface traps in the gate oxide (e.g. a two-stage NMP model) and simulate stress/recovery."},
+        {"id": "breakdown", "name": "Breakdown & field management", "kind": "physics", "terms": ["breakdown", "field plate", "edge termination", "electric field", "junction termination"], "tcad": "Include field plates / termination and use impact ionisation coefficients for the right polytype and orientation."},
+        {"id": "gate-oxide", "name": "Gate oxide & interface", "kind": "physics", "terms": ["gate oxide", "interface state", "dit", "sio2/sic", "near-interface", "tddb"], "tcad": "Add an interface-state density profile (Dit vs. energy) and mobility degradation at the interface."},
+        {"id": "temperature", "name": "High-temperature operation", "kind": "physics", "terms": ["temperature", "high-temperature", "elevated temperature"], "tcad": "Sweep temperature with temperature-dependent mobility, polarisation and trap emission."},
+        {"id": "polarization", "name": "Polarisation & 2DEG", "kind": "physics", "terms": ["polarization", "2deg", "two-dimensional electron gas", "piezoelectric"], "tcad": "Use the strain-dependent piezoelectric polarisation model and check 2DEG density versus barrier thickness."},
+        {"id": "short-circuit", "name": "Short-circuit & avalanche ruggedness", "kind": "technique", "terms": ["short-circuit", "short circuit", "avalanche", "ruggedness", "uis"], "tcad": "Run mixed-mode short-circuit / UIS transients with the thermal model on."},
+        {"id": "e-mode", "name": "Normally-off (E-mode) gate", "kind": "technique", "terms": ["normally-off", "enhancement-mode", "e-mode", "p-gan", "recessed gate"], "tcad": "Model the p-GaN or recessed gate stack including the Schottky metal / p-GaN junction."},
+        {"id": "integration", "name": "Monolithic integration & drivers", "kind": "technique", "terms": ["monolithic", "integrated driver", "gan ic", "half-bridge", "integration"], "tcad": "Simulate two devices on the same substrate to capture back-gating / substrate crosstalk."},
+        {"id": "rf", "name": "RF / high-frequency", "kind": "technique", "terms": ["rf", "ft", "fmax", "high-frequency", "power amplifier", "mmwave"], "tcad": "Run AC small-signal simulation to extract fT/fmax including parasitics."}
+      ],
+      "eda": {
+        "compact_model": "ASM-HEMT or MVSG (GaN, CMC standard) / a SiC MOSFET compact model with thermal network, fitted to the paper's I-V, C-V and pulsed data; trapping as an extra sub-circuit.",
+        "tools": ["Keysight ADS (RF and power amplifiers)", "LTspice or SIMetrix/SIMPLIS", "PLECS for converter losses", "Cadence Spectre with the ASM-HEMT Verilog-A model", "ngspice or Xyce with OpenVAF (free)"],
+        "steps": [
+          "Fit ASM-HEMT / MVSG (GaN) or a SiC MOSFET model to the measured DC, C-V and pulsed I-V; add dynamic Ron with a trap sub-circuit.",
+          "Build a double-pulse test bench with realistic layout parasitics and the gate driver the device needs.",
+          "Use the device in a target circuit: a totem-pole PFC / LLC / half-bridge inverter for power, or a PA in ADS for RF.",
+          "Report efficiency, switching loss, ringing and junction temperature versus Si or SiC baselines."
+        ]
+      }
+    }
+  ]
+}
