@@ -7,6 +7,9 @@ import { analyzeTree, profile, coverage, guessCategory } from "../site/lib/engin
 import { findDois, phraseRegex } from "../site/lib/text.js";
 import { SCHEMA, buildPrompt, parseJson } from "../site/lib/ai.js";
 import { pickSeeds } from "../pipeline/run.mjs";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import { keepRegexes } from "../site/lib/engine.js";
+import { condense, htmlToText, stripReferences } from "../site/lib/fulltext.js";
 import { WORKS, fakeFetch } from "./fixtures.mjs";
 
 const cfg = JSON.parse(fs.readFileSync(new URL("../site/config.json", import.meta.url)));
@@ -84,4 +87,26 @@ test("AI prompt and JSON parsing", async () => {
   assert.ok(prompt.includes("graded tunnel oxide") && prompt.includes("candidate_gaps"));
   assert.deepEqual(parseJson('```json\n{"gaps": []}\n```'), { gaps: [] });
   assert.equal(SCHEMA.additionalProperties, false);
+});
+
+test("free full text: open PDF is read, references dropped, authors' future work becomes a gap", async () => {
+  const s = new Sources({ fetch: fakeFetch, pause: 0, pdfjs, keepRx: keepRegexes(cfg) });
+  const seed = await s.resolve("10.1109/TED.2026.0001");
+  assert.equal(seed.oa_pdf, "https://example.org/W1.pdf");
+  const tree = await buildTree(s, seed, { tree: cfg.tree, fullText: true });
+  assert.equal(tree.seed.ft.source, "Open-access PDF (OpenAlex)");
+  assert.match(tree.seed.body, /Sentaurus TCAD/);
+  assert.ok(!/IEEE TED, 2020/.test(tree.seed.body), "reference list is not counted as the paper's own work");
+  assert.ok(tree.seed.future.some((f) => /future work/i.test(f)));
+  const { gaps } = analyzeTree(tree, { cat: nand, cfg, topicId: "3d-nand-cell", pool: [] });
+  assert.equal(gaps[0].type, "authors_future_work");
+});
+
+test("full-text helpers", () => {
+  assert.equal(htmlToText("<p>Hello <b>world</b></p><script>x()</script>").trim(), "Hello world");
+  const t = "Intro text. ".repeat(50) + "\nReferences\n[1] Something fabricated.";
+  assert.ok(!stripReferences(t).includes("Something fabricated"));
+  const c = condense("We fabricated the device on a wafer. It was nice and very good indeed. Future work will study endurance in detail.", [/fabricated/i]);
+  assert.equal(c.future.length, 1);
+  assert.match(c.body, /fabricated/);
 });

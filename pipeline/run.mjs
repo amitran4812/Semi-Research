@@ -6,13 +6,15 @@
 //   node pipeline/run.mjs --only nand     one category (comma-separate several)
 //   node pipeline/run.mjs --no-ai         skip Claude even when ANTHROPIC_API_KEY is set
 //   node pipeline/run.mjs --refresh       rebuild trees even when they are recent
+//   node pipeline/run.mjs --no-fulltext   skip reading free full texts
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Sources, venueRank } from "../site/lib/sources.js";
 import { buildTree, slim } from "../site/lib/tree.js";
-import { analyzeTree } from "../site/lib/engine.js";
+import { analyzeTree, keepRegexes } from "../site/lib/engine.js";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { phraseRegex } from "../site/lib/text.js";
 import { claudeAnalysis } from "./claude.mjs";
 
@@ -30,7 +32,13 @@ const refresh = flag("--refresh");
 const TREE_MAX_AGE_DAYS = 14;
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
-const src = new Sources({ mailto: process.env.OPENALEX_EMAIL || "", s2Key: process.env.S2_API_KEY || "", log, pause: 150 });
+const src = new Sources({
+  mailto: process.env.OPENALEX_EMAIL || "",
+  unpaywallEmail: process.env.UNPAYWALL_EMAIL || process.env.OPENALEX_EMAIL || "",
+  s2Key: process.env.S2_API_KEY || "",
+  coreKey: process.env.CORE_API_KEY || "",
+  pdfjs, keepRx: keepRegexes(cfg), log, pause: 150,
+});
 
 function readJson(file, dflt) {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { return dflt; }
@@ -94,7 +102,7 @@ async function main() {
         let tree = oldTrees[seed.id];
         if (!tree || refresh || daysAgo(tree.built) > TREE_MAX_AGE_DAYS) {
           log(`   tree: ${seed.title.slice(0, 70)}`);
-          const fresh = await buildTree(src, seed, { tree: cfg.tree });
+          const fresh = await buildTree(src, seed, { tree: cfg.tree, fullText: !flag("--no-fulltext") });
           if (tree && tree.ai) fresh.ai = tree.ai;
           tree = fresh;
         }

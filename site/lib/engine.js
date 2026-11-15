@@ -27,12 +27,13 @@ export const GAP_TYPES = {
   cross_topic: { label: "Idea from a nearby topic", stage: "Cross-topic" },
   combination: { label: "Untried combination", stage: "Combination" },
   open_followup: { label: "Nobody has built on it yet", stage: "Follow-up" },
+  authors_future_work: { label: "Left open by the authors", stage: "Follow-up" },
 };
 
 // What a paper did, judged from its title and abstract.
 export function profile(p, cat, cfg) {
   if (p._prof && p._prof.cat === cat.id) return p._prof;
-  const text = (p.title || "") + ". " + (p.abstract || "");
+  const text = (p.title || "") + ". " + (p.abstract || "") + " " + (p.body || "");
   const st = cfg.stage_terms;
   const sim = hit(rx(cfg, "sim", st.sim), text);
   const fab = hit(rx(cfg, "fab", st.fab), text);
@@ -40,9 +41,17 @@ export function profile(p, cat, cfg) {
   const features = [];
   for (const f of cat.features) if (hit(rx(f, "t", f.terms), text)) features.push(f.id);
   const stage = circuit && (fab || !sim) ? "circuit" : fab ? "fab" : sim ? "sim" : "unknown";
-  const prof = { cat: cat.id, sim, fab, circuit, stage, features, tok: tokens(text) };
+  const prof = { cat: cat.id, sim, fab, circuit, stage, features, tok: tokens((p.title || "") + ". " + (p.abstract || "")), basis: p.ft ? "full text" : "abstract" };
   Object.defineProperty(p, "_prof", { value: prof, enumerable: false, configurable: true, writable: true });
   return prof;
+}
+
+// Sentences worth keeping from a full text: anything about stage or the effects the config checks.
+export function keepRegexes(cfg) {
+  const st = cfg.stage_terms;
+  const rxs = [phraseRegex(st.sim), phraseRegex(st.fab), phraseRegex(st.circuit)];
+  for (const c of cfg.categories) for (const f of c.features) rxs.push(phraseRegex(f.terms));
+  return rxs.filter(Boolean);
 }
 
 // Which category fits a set of papers best (for the user's own papers).
@@ -211,6 +220,19 @@ export function analyzeTree(tree, ctx) {
     }
   }
 
+  // 0. What the authors themselves say is missing (only when the full text was read).
+  if ((seed.future || []).length) {
+    gaps.push({
+      type: "authors_future_work", score: 0.92,
+      title: "Do what the authors left open",
+      why: "From the paper's own text (" + ((seed.ft && seed.ft.source) || "full text") + "): " + seed.future.slice(0, 2).map((s) => "“" + s + "”").join(" "),
+      evidence: [],
+      quotes: seed.future,
+      steps: ["Read the limitation / future-work passages quoted here in the paper itself.", "Check the papers that cite it (in the tree) to see whether anyone has done it since.", "If nobody has, it is a direct, citable gap: the authors named it themselves."],
+      tools: [],
+    });
+  }
+
   // 6. A fresh result with no follow-ups yet.
   if (!citers.length) {
     gaps.push({
@@ -241,7 +263,7 @@ export function baseReason(tree, base, seed, cat, cfg) {
 
 export function describe(p, prof, cat) {
   const f = prof.features.map((id) => featureName(cat, id).toLowerCase());
-  return STAGES[prof.stage].label + (f.length ? "; covers " + f.join(", ") : "") + ".";
+  return STAGES[prof.stage].label + (f.length ? "; covers " + f.join(", ") : "") + ". (Judged from the " + prof.basis + ".)";
 }
 
 // Feature x stage counts for a set of papers (the coverage grid on topic pages).

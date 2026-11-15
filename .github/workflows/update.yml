@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Only these categories (comma-separated: nand,dram,power,wbg). Blank = all."
+        description: "Only these fields (comma-separated: nand,hbf,dram,emerging,power,wbg). Blank = all."
         required: false
         default: ""
       refresh:
@@ -33,7 +33,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +54,8 @@ jobs:
           GAPFINDER_MODEL: ${{ vars.GAPFINDER_MODEL }}
           OPENALEX_EMAIL: ${{ vars.OPENALEX_EMAIL }}
           S2_API_KEY: ${{ secrets.S2_API_KEY }}
+          UNPAYWALL_EMAIL: ${{ vars.UNPAYWALL_EMAIL }}
+          CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
           ONLY: ${{ inputs.only }}
           REFRESH: ${{ inputs.refresh }}
         run: |

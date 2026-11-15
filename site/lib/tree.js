@@ -12,6 +12,8 @@ export function slim(p, keepAbstract = 700) {
     cited_by: p.cited_by || 0, url: p.url, authors: (p.authors || []).slice(0, 4),
     abstract: cleanText(p.abstract, keepAbstract),
   };
+  for (const k of ["oa", "oa_url", "oa_pdf", "s2_pdf", "upw_pdf", "arxiv"]) if (p[k]) out[k] = p[k];
+  if (p.ft) { out.ft = p.ft; out.body = cleanText(p.body, 6000); out.future = (p.future || []).slice(0, 6); }
   if (p.why && (p.why.context || p.why.intents && p.why.intents.length || p.why.influential)) out.why = p.why;
   return out;
 }
@@ -55,6 +57,12 @@ export async function buildTree(src, seed, opts = {}) {
   refsAll.forEach((r) => { const w = whyFor(s2refs, r); if (w) r.why = w; });
   const { base, ordered } = pickBase(seed, refsAll);
   const refs = ordered.slice(0, T.references);
+
+  if (opts.fullText) {
+    onStep("reading the free full text");
+    await src.fullText(seed);
+    if (base) await src.fullText(base);
+  }
 
   onStep("citing papers");
   const citers = (await src.citers(seed.id, { perPage: T.citers })).filter((p) => p.id !== seed.id);

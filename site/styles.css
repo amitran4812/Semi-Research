@@ -530,3 +530,8 @@ details.abstract p { font-size: .92rem; margin-top: .5rem; color: var(--muted); 
 .applic { border-collapse: collapse; width: 100%; }
 .verdict { font-weight: 700; white-space: nowrap; }
 .site-header .icon-btn.key-on::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #fff; }
+.badge.oa { background: #e7f6ec; color: #0f7b3f; }
+:root[data-theme="dark"] .badge.oa { background: #0f2a1a; color: #3ddc84; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge.oa { background: #0f2a1a; color: #3ddc84; } }
+.overlay blockquote.why { margin: .5rem 0; font-size: .95rem; border-left: 3px solid var(--red); padding-left: .8rem; color: var(--text); }
+@media (min-width: 821px) and (max-width: 1360px) { .header-row { gap: 1rem; } .nav { gap: 0; } .nav a { padding: .55rem .6rem; font-size: .95rem; } }

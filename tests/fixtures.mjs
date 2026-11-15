@@ -18,13 +18,16 @@ export function work(id, title, abstract, extra = {}) {
     authorships: [{ author: { display_name: "A. Author" } }],
     referenced_works: (extra.refs || []).map((r) => "https://openalex.org/" + r),
     type: "article",
+    open_access: { is_oa: !!extra.pdf, oa_url: extra.pdf || null },
+    best_oa_location: extra.pdf ? { pdf_url: extra.pdf, landing_page_url: extra.pdf } : null,
+    locations: [],
   };
 }
 
 export const WORKS = {
   W1: work("W1", "TCAD study of a 3D NAND charge trap cell with a graded tunnel oxide",
     "We propose a graded tunnel oxide for 3D NAND charge trap flash. Sentaurus TCAD simulations show faster program speed and a wider memory window. The cell retention after bake is predicted with trap emission models.",
-    { doi: "10.1109/TED.2026.0001", refs: ["W10", "W11", "W12"], cites: 2 }),
+    { doi: "10.1109/TED.2026.0001", refs: ["W10", "W11", "W12"], cites: 2, pdf: "https://example.org/W1.pdf" }),
   W10: work("W10", "Charge trap 3D NAND with bandgap engineered tunnel oxide",
     "A bandgap engineered tunnel oxide for charge trap 3D NAND flash is fabricated and measured. Program speed and retention are characterized on a 128-layer test chip.",
     { refs: [], cites: 340, date: "2019-05-01" }),
@@ -54,10 +57,17 @@ export const WORKS = {
 
 export const CITERS = { W1: ["W20"], W10: ["W30", "W31", "W32", "W33", "W34", "W35", "W1"], W11: ["W31"], W12: [] };
 
+import fs from "node:fs";
+const PDF = fs.readFileSync(new URL("./fixtures/sample-paper.pdf", import.meta.url));
+
 export function fakeFetch(url) {
   const u = new URL(url);
+  if (u.hostname === "example.org" && u.pathname.endsWith(".pdf")) {
+    return Promise.resolve({ ok: true, status: 200, headers: new Map([["content-type", "application/pdf"]]), arrayBuffer: () => Promise.resolve(PDF.buffer.slice(PDF.byteOffset, PDF.byteOffset + PDF.byteLength)) });
+  }
   const json = (body) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
   if (u.hostname === "api.semanticscholar.org") {
+    if (/fields=openAccessPdf/.test(url)) return json({ openAccessPdf: null, externalIds: {} });
     if (url.includes("/references")) return json({ data: [{ isInfluential: true, intents: ["methodology"], contexts: ["Following the engineered tunnel oxide of [10], we grade the barrier."], citedPaper: { title: WORKS.W10.display_name, externalIds: {} } }] });
     return json({ data: [] });
   }

@@ -1,12 +1,19 @@
-// Paper sources: OpenAlex (search, references, citing papers) and Semantic Scholar
-// (why a paper was cited: citation intents and context sentences).
-// Works in the browser and in Node 18+ (global fetch). Both APIs are free and need no key.
+// Paper sources, all free:
+//   OpenAlex          search, references, citing papers, open-access links
+//   Semantic Scholar  why a paper was cited (intents, context sentences), open-access PDF
+//   Unpaywall         legal open-access copy of a DOI (needs a contact email)
+//   Crossref          abstract fallback when OpenAlex has none
+//   CORE              full text from open repositories (needs a free API key)
+//   arXiv             preprint full text (HTML or PDF)
+// Google Scholar has no API and blocks automated access, so it is only linked.
+// Works in the browser and in Node 18+ (global fetch).
 
 import { abstractFromIndex, cleanText, normTitle, tokens, jaccard } from "./text.js";
+import { candidates, condense, htmlToText, pdfText } from "./fulltext.js";
 
 export const OPENALEX = "https://api.openalex.org/works";
 export const S2 = "https://api.semanticscholar.org/graph/v1/paper";
-const SELECT = "id,doi,display_name,publication_date,publication_year,primary_location,cited_by_count,abstract_inverted_index,authorships,referenced_works,type";
+const SELECT = "id,doi,display_name,publication_date,publication_year,primary_location,cited_by_count,abstract_inverted_index,authorships,referenced_works,type,open_access,best_oa_location,locations";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -15,6 +22,10 @@ export class Sources {
     this.fetch = opts.fetch || ((...a) => globalThis.fetch(...a));
     this.mailto = opts.mailto || "";
     this.s2Key = opts.s2Key || "";
+    this.unpaywallEmail = opts.unpaywallEmail || "";
+    this.coreKey = opts.coreKey || "";
+    this.pdfjs = opts.pdfjs || null;          // a pdf.js module, to read open PDFs
+    this.keepRx = opts.keepRx || [];          // sentences worth keeping from full texts
     this.useS2 = opts.useS2 !== false;
     this.pause = opts.pause == null ? 120 : opts.pause;
     this.log = opts.log || (() => {});
@@ -104,6 +115,81 @@ export class Sources {
     return res[0];
   }
 
+  async getRaw(url) {
+    try {
+      this.calls++;
+      const init = {};
+      if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) init.signal = AbortSignal.timeout(this.timeout * 2);
+      const r = await this.fetch(url, init);
+      if (!r.ok) return null;
+      const len = +(r.headers && r.headers.get && r.headers.get("content-length") || 0);
+      if (len > 30e6) return null;
+      const buf = new Uint8Array(await r.arrayBuffer());
+      if (this.pause) await sleep(this.pause);
+      return { buf, type: (r.headers && r.headers.get && r.headers.get("content-type")) || "" };
+    } catch (e) { this.log(`GET ${url} failed: ${e.message}`); return null; }
+  }
+
+  // Abstract from Crossref when OpenAlex has none (publishers that hide it from OpenAlex).
+  async crossrefAbstract(doi) {
+    if (!doi) return "";
+    const j = await this.getJson("https://api.crossref.org/works/" + encodeURIComponent(doi) + (this.mailto ? "?mailto=" + encodeURIComponent(this.mailto) : ""), null, 2);
+    return cleanText(j && j.message && j.message.abstract || "").replace(/^Abstract\s*/i, "");
+  }
+
+  // Open-access PDF links from Unpaywall and Semantic Scholar.
+  async oaLinks(p) {
+    if (!p.doi) return;
+    if (this.unpaywallEmail && !p.upw_pdf) {
+      const j = await this.getJson(`https://api.unpaywall.org/v2/${encodeURIComponent(p.doi)}?email=${encodeURIComponent(this.unpaywallEmail)}`, null, 2);
+      const best = j && j.best_oa_location;
+      if (best) { p.upw_pdf = best.url_for_pdf || null; p.oa_url = p.oa_url || best.url; }
+    }
+    if (this.useS2 && !p.s2_pdf) {
+      const j = await this.getJson(`${S2}/DOI:${encodeURIComponent(p.doi)}?fields=openAccessPdf,externalIds`, this.s2Key ? { "x-api-key": this.s2Key } : undefined, 2);
+      if (j && j.openAccessPdf && j.openAccessPdf.url) p.s2_pdf = j.openAccessPdf.url;
+      if (j && j.externalIds && j.externalIds.ArXiv && !p.arxiv) p.arxiv = j.externalIds.ArXiv;
+    }
+  }
+
+  // CORE: full text from institutional repositories (free key from core.ac.uk).
+  async coreText(p) {
+    if (!this.coreKey || !p.doi) return null;
+    const j = await this.getJson(`https://api.core.ac.uk/v3/search/works?q=${encodeURIComponent('doi:"' + p.doi + '"')}&limit=1`, { authorization: "Bearer " + this.coreKey }, 2);
+    const w = j && j.results && j.results[0];
+    return w && w.fullText && w.fullText.length > 2000 ? { text: w.fullText, url: w.downloadUrl || (w.links || [])[0] && w.links[0].url || "", source: "CORE" } : null;
+  }
+
+  /**
+   * Read a free full text for a paper, if there is one, and keep what the gap checks need.
+   * Sets p.ft = {source, url, words}, p.body (key sentences) and p.future (limitations / future work).
+   */
+  async fullText(p) {
+    if (p.ft) return p.ft;
+    if (!p.abstract) p.abstract = await this.crossrefAbstract(p.doi);
+    await this.oaLinks(p);
+    let got = await this.coreText(p);
+    for (const c of got ? [] : candidates(p)) {
+      if (c.kind === "arxiv-html") {
+        const r = await this.getRaw(c.url);
+        if (r && /html/i.test(r.type)) {
+          const text = htmlToText(new TextDecoder().decode(r.buf));
+          if (text.length > 4000) { got = { text, url: c.url, source: c.source }; break; }
+        }
+      } else if (c.kind === "pdf" && this.pdfjs) {
+        const r = await this.getRaw(c.url);
+        if (r && r.buf[0] === 0x25 && r.buf[1] === 0x50 && r.buf[2] === 0x44 && r.buf[3] === 0x46) { // "%PDF"
+          try {
+            const text = await pdfText(this.pdfjs, r.buf);
+            if (text.length > 2000) { got = { text, url: c.url, source: c.source }; break; }
+          } catch (e) { this.log(`PDF ${c.url}: ${e.message}`); }
+        }
+      }
+    }
+    if (!got) return null;
+    return attachText(p, got.text, got.source, got.url, this.keepRx);
+  }
+
   // Semantic Scholar: why papers cite each other. Returns Map(key -> {intents, context, influential}),
   // keyed by lower-case DOI and by normalised title. Best effort: an empty map on any failure.
   async s2Links(doi, direction) {
@@ -161,5 +247,27 @@ export function toPaper(w) {
     authors: (w.authorships || []).map((a) => a.author && a.author.display_name).filter(Boolean).slice(0, 4),
     abstract: cleanText(abstractFromIndex(w.abstract_inverted_index)),
     refs: (w.referenced_works || []).map(shortId).filter(Boolean),
+    oa: !!(w.open_access && w.open_access.is_oa),
+    oa_url: (w.open_access && w.open_access.oa_url) || (w.best_oa_location && w.best_oa_location.landing_page_url) || null,
+    oa_pdf: (w.best_oa_location && w.best_oa_location.pdf_url) || null,
+    arxiv: arxivId(w),
   };
+}
+
+function arxivId(w) {
+  for (const l of w.locations || []) {
+    const m = String(l.landing_page_url || l.pdf_url || "").match(/arxiv\.org\/(?:abs|pdf)\/([\w.\-/]+?)(?:v\d+)?(?:\.pdf)?$/i);
+    if (m) return m[1];
+  }
+  const d = String(w.doi || "").match(/10\.48550\/arxiv\.(.+)$/i);
+  return d ? d[1] : null;
+}
+
+// Attach a full text (from any source, including a PDF the user dropped in) to a paper.
+export function attachText(p, text, source, url, keepRx) {
+  const c = condense(text, keepRx);
+  p.body = c.body;
+  p.future = c.future;
+  p.ft = { source, url: url || "", words: c.words };
+  return p.ft;
 }

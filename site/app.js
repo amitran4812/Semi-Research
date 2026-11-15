@@ -1,15 +1,23 @@
 /* Gap Finder front end. Topic data comes from data/*.json (written by the scheduled build);
    "My papers" builds citation trees live in the browser from OpenAlex and Semantic Scholar. */
-import { Sources } from "./lib/sources.js";
+import { Sources, attachText } from "./lib/sources.js";
+import { pdfText } from "./lib/fulltext.js";
 import { buildTree } from "./lib/tree.js";
-import { analyzeTree, coverage, guessCategory, profile, topicGaps, GAP_TYPES, STAGES } from "./lib/engine.js";
+import { analyzeTree, coverage, guessCategory, keepRegexes, profile, topicGaps, GAP_TYPES, STAGES } from "./lib/engine.js";
 import { findDois, cleanText } from "./lib/text.js";
 import { PROVIDERS, analyzeWithAI, complete, buildPrompt, CHAT_SYSTEM } from "./lib/ai.js";
 
 const app = document.getElementById("app");
 const overlayRoot = document.getElementById("overlay-root");
 const D = { cfg: null, index: null, topics: {} };
-const mem = { ai: {}, chats: {} };
+const mem = { ai: {}, chats: {}, dropped: {} };
+const PDFJS = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/";
+let pdfjsPromise = null;
+function loadPdfjs() {
+  if (!pdfjsPromise) pdfjsPromise = import(PDFJS + "pdf.min.mjs").then((m) => { m.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs"; return m; }).catch(() => null);
+  return pdfjsPromise;
+}
+const freePdf = (p) => p.oa_pdf || p.s2_pdf || p.upw_pdf || (p.arxiv ? "https://arxiv.org/pdf/" + p.arxiv : "");
 
 // ------------------------------------------------------------------ helpers
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -31,7 +39,7 @@ const noData = () => empty("No data yet. The first scheduled run fills this in, 
 function stageMark(stage) { return `<span class="stage ${stage}"><i aria-hidden="true"></i>${esc(STAGES[stage].short)}</span>`; }
 function paperMeta(p, cat) {
   const pr = profile(p, cat, D.cfg);
-  return `<div class="meta">${stageMark(pr.stage)}${p.tx ? '<span class="tx">TRANSACTIONS</span>' : ""}<span class="src">${esc(p.venue || "")}</span>${p.date ? `<span class="dot">${esc(fmtDate(p.date))}</span>` : p.year ? `<span class="dot">${p.year}</span>` : ""}${p.cited_by ? `<span class="dot">cited ${p.cited_by}×</span>` : ""}</div>`;
+  return `<div class="meta">${stageMark(pr.stage)}${p.tx ? '<span class="tx">TRANSACTIONS</span>' : ""}${p.ft ? `<span class="badge oa" title="Judged from the full text: ${esc(p.ft.source)}">FULL TEXT READ</span>` : p.oa ? '<span class="badge oa">OPEN ACCESS</span>' : ""}<span class="src">${esc(p.venue || "")}</span>${p.date ? `<span class="dot">${esc(fmtDate(p.date))}</span>` : p.year ? `<span class="dot">${p.year}</span>` : ""}${p.cited_by ? `<span class="dot">cited ${p.cited_by}×</span>` : ""}</div>`;
 }
 function paperCard(p, cat, opts = {}) {
   const why = p.why && (p.why.context || (p.why.intents || []).length) ? `<div class="why">${p.why.intents && p.why.intents.length ? "<b>" + esc(p.why.intents.join(", ")) + "</b> " : ""}${esc(p.why.context || "")}</div>` : "";
@@ -43,7 +51,7 @@ function paperCard(p, cat, opts = {}) {
     ${why}
     ${p.abstract ? `<details class="abstract"><summary>Abstract</summary><p>${esc(p.abstract)}</p></details>` : ""}
     ${feats ? `<div class="tags">${feats}</div>` : ""}
-    <div class="links">${ext(p.url, "Paper")}${p.doi ? ext("https://doi.org/" + p.doi, "DOI") : ""}${ext("https://scholar.google.com/scholar?q=" + encodeURIComponent(p.title), "Scholar")}</div>
+    <div class="links">${ext(p.url, "Paper")}${freePdf(p) ? ext(freePdf(p), "Free PDF") : p.oa_url ? ext(p.oa_url, "Free copy") : ""}${p.doi ? ext("https://doi.org/" + p.doi, "DOI") : ""}${ext("https://scholar.google.com/scholar?q=" + encodeURIComponent(p.title), "Google Scholar")}${freePdf(p) || p.oa_url ? "" : ext("https://core.ac.uk/search?q=" + encodeURIComponent('"' + p.title + '"'), "Find on CORE")}</div>
   </article>`;
 }
 function banner(eyebrow, title, text, artKey, extra = "") {
@@ -69,7 +77,7 @@ async function categoryPool(cat) {
 function normGaps(analysis, ai) {
   const out = [];
   if (ai && ai.gaps) ai.gaps.forEach((g) => out.push({ source: "ai", title: g.title, stage: g.stage, why: g.why, evidence: g.evidence_ids || [], steps: g.next_steps || [], tools: g.tools || [] }));
-  (analysis.gaps || []).forEach((g) => out.push({ source: "rules", type: g.type, title: g.title, stage: GAP_TYPES[g.type].stage, label: GAP_TYPES[g.type].label, why: g.why, evidence: g.evidence || [], steps: g.steps || [], tools: g.tools || [], compact: g.compact_model }));
+  (analysis.gaps || []).forEach((g) => out.push({ source: "rules", type: g.type, title: g.title, stage: GAP_TYPES[g.type].stage, label: GAP_TYPES[g.type].label, why: g.why, evidence: g.evidence || [], steps: g.steps || [], tools: g.tools || [], compact: g.compact_model, quotes: g.quotes }));
   return out;
 }
 function gapTile(g, i, from) {
@@ -95,7 +103,7 @@ function openGap(g, lookup, cat) {
     <button class="icon-btn plain close" type="button" aria-label="Close">✕</button>
     <div class="meta"><span class="badge st">${esc(g.stage || "")}</span>${g.source === "ai" ? '<span class="badge ai">AI</span>' : `<span class="small muted">${esc(g.label || "Rule check")}</span>`}</div>
     <h2>${esc(g.title)}</h2>
-    <p>${esc(g.why)}</p>
+    ${g.quotes ? `<p>The paper's own words:</p>${g.quotes.map((q) => `<blockquote class="why">${esc(q)}</blockquote>`).join("")}` : `<p>${esc(g.why)}</p>`}
     ${g.compact ? `<h4>Compact model</h4><p>${esc(g.compact)}</p>` : ""}
     ${g.steps.length ? `<h4>What you can do</h4><ol>${g.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
     ${g.tools.length ? `<h4>Tools</h4><div class="tags">${g.tools.map((t) => `<span class="tag topic">${esc(t)}</span>`).join("")}</div>` : ""}
@@ -240,18 +248,18 @@ async function home() {
     const ic = idx && idx.categories.find((x) => x.id === c.id);
     const papers = ic ? ic.topics.reduce((n, t) => n + t.papers, 0) : 0;
     const gaps = ic ? ic.topics.reduce((n, t) => n + t.gaps, 0) : 0;
-    return `<a class="card hover tile" href="#/c/${c.id}"><div class="media">${art(c.art, c.id)}</div><div class="body"><h3>${esc(c.name)}</h3><p>${esc(c.blurb)}</p>
-      <div class="num"><span><b>${c.topics.length}</b>topics</span><span><b>${papers}</b>papers</span><span><b>${gaps}</b>gaps</span></div></div></a>`;
-  }).join("");
+    return { group: c.group, html: `<a class="card hover tile" href="#/c/${c.id}"><div class="media">${art(c.art, c.id)}</div><div class="body"><h3>${esc(c.name)}</h3><p>${esc(c.blurb)}</p>
+      <div class="num"><span><b>${c.topics.length}</b>topics</span><span><b>${papers}</b>papers</span><span><b>${gaps}</b>gaps</span></div></div></a>` };
+  });
   const latest = [];
   (idx ? idx.categories : []).forEach((ic) => ic.topics.forEach((t) => { if (t.top_gap) latest.push({ ...t, cat: ic.id }); }));
-  app.innerHTML = `${banner("Research gap finder", "Find the gap, then go after it", "Pick a field. For the newest papers (IEEE Transactions first) it builds the citation tree: the base paper, the references, who cites it, and what everyone else built on the same base. Then it tells you what is still missing: not fabricated yet, physics missing from the TCAD model, or a device nobody has put in a circuit.", "gap")}
-    <section>${sectionTitle("Fields")}<div class="tiles big">${cats}</div></section>
+  app.innerHTML = `${banner("Research gap finder", "Find the gap, then go after it", "Memory and storage first (NAND, HBF, HBM, DRAM, MRAM, ReRAM, PCM, FeFET), power devices too. Every week it pulls the newest papers (IEEE Transactions first), reads the free full text where there is one, and builds the citation tree: the base paper, the references, who cites it, and what everyone else built on the same base. Then it tells you what is still missing: not fabricated yet, physics missing from the TCAD model, or a device nobody has put in a circuit.", "gap")}
+    ${(D.cfg.groups || [{ id: null, name: "Fields" }]).map((g) => `<section>${sectionTitle(g.name, g.blurb ? `<span class="small muted">${esc(g.blurb)}</span>` : "")}<div class="tiles big">${cats.filter((c) => !g.id || c.group === g.id).map((c) => c.html).join("")}</div></section>`).join("")}
     <section>${sectionTitle("Latest gaps by topic")}${latest.length ? `<div class="tiles gaps">${latest.slice(0, 12).map((t) => `<a class="card hover gap-tile" href="#/t/${t.id}"><div class="meta"><span class="badge st">${esc(catById(t.cat).name)}</span></div><h3>${esc(t.top_gap)}</h3><p>${esc(t.name)}: ${t.papers} recent papers, ${t.gaps} gaps across ${t.seeds} citation trees.</p><div class="foot"><span>${t.tx} Transactions papers</span><span class="read">Open →</span></div></a>`).join("")}</div>` : noData()}</section>
     <section>${sectionTitle("How it works")}<div class="steps">
-      <div class="card"><h3>Newest papers</h3><p>OpenAlex search per topic, last ${D.cfg.lookback_days} days, IEEE Transactions and core device journals first.</p></div>
+      <div class="card"><h3>Newest papers, weekly</h3><p>OpenAlex search per topic every Monday, last ${D.cfg.lookback_days} days, IEEE Transactions and core device journals first. Free full text from arXiv, open-access PDFs (OpenAlex, Semantic Scholar, Unpaywall) and CORE.</p></div>
       <div class="card"><h3>Citation tree</h3><p>References, the base paper (most similar and most influential reference), papers citing it, and who else builds on the base paper.</p></div>
-      <div class="card"><h3>What each paper did</h3><p>From the abstract: simulation/TCAD only, fabricated and measured, or used in a circuit, plus the physics it covers.</p></div>
+      <div class="card"><h3>What each paper did</h3><p>From the free full text when there is one (including what the authors say is left open), otherwise the abstract: simulation/TCAD only, fabricated and measured, or used in a circuit, plus the physics it covers.</p></div>
       <div class="card"><h3>Gaps and next steps</h3><p>Not fabricated, missing TCAD physics, no circuit yet (with compact model and EDA tool), ideas from nearby topics. Add your AI key for a deeper read.</p></div>
     </div></section>`;
 }
@@ -341,7 +349,8 @@ function renderPaper(tree, cat, opts) {
       <p class="small muted" style="margin-top:.5rem">${esc((tree.seed.authors || []).join(", "))}</p>
       <p><b>What it did:</b> ${esc((ai && ai.summary) || an.summary)}</p>
       ${tree.seed.abstract ? `<details class="abstract"><summary>Abstract</summary><p>${esc(tree.seed.abstract)}</p></details>` : ""}
-      <div class="links">${ext(tree.seed.url, "Paper")}${tree.seed.doi ? ext("https://doi.org/" + tree.seed.doi, "DOI") : ""}</div></article>
+      <div class="links">${ext(tree.seed.url, "Paper")}${freePdf(tree.seed) ? ext(freePdf(tree.seed), "Free PDF") : tree.seed.oa_url ? ext(tree.seed.oa_url, "Free copy") : ""}${tree.seed.doi ? ext("https://doi.org/" + tree.seed.doi, "DOI") : ""}${ext("https://scholar.google.com/scholar?q=" + encodeURIComponent(tree.seed.title), "Google Scholar")}</div>
+      <p class="small muted">${tree.seed.ft ? `Read from the free full text (${esc(tree.seed.ft.source)}, about ${tree.seed.ft.words} words).` : "No free full text found, so this is judged from the title and abstract."}</p></article>
     <section>${sectionTitle("Research gaps")}${gapGrid(gaps, lookup, cat)}</section>
     <section>${sectionTitle("Citation tree", `<span class="small muted">${tree.seed.refs_total || tree.references.length} references in total; the most relevant ${tree.references.length} shown</span>`)}${treeSvg(singleTreeColumns(tree), cat, "t")}</section>
     ${base ? `<section>${sectionTitle("Base paper")}${paperCard(base, cat, { base: true })}<p class="small" style="margin-top:.6rem">${esc((ai && ai.base_reason) || an.base_reason)}</p></section>` : ""}
@@ -391,21 +400,27 @@ function aiPage() {
 
 // ------------------------------------------------------------------ My papers
 const MINE_TREE = { references: 12, citers: 12, base_citers: 10, ref_citers_for: 2, ref_citers: 6 };
+// Returns the lines to add to the input box. A dropped PDF is also read in full (pdf.js), so the
+// user's own paper is judged from its full text, including its limitations and future work.
 async function readFileIds(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith(".pdf")) {
     const buf = new Uint8Array(await file.arrayBuffer());
+    const pdfjs = await loadPdfjs();
     let text = "";
-    for (let i = 0; i < buf.length; i += 65536) text += String.fromCharCode.apply(null, buf.subarray(i, i + 65536));
-    const meta = text.match(/(?:prism:doi|pdfx:doi|crossmark:DOI|dc:identifier)[^>]*>\s*(?:doi:)?\s*(10\.\d{4,9}\/[^<\s]+)/i) || text.match(/\/doi\s*\((10\.\d{4,9}\/[^)]+)\)/i);
-    if (meta) return [meta[1]];
-    const all = findDois(text);
-    if (all.length) {
-      const freq = {}; all.forEach((d) => { freq[d] = (text.split(d).length - 1); });
-      return [all.sort((a, b) => freq[b] - freq[a])[0]];
+    if (pdfjs) { try { text = await pdfText(pdfjs, buf.slice()); } catch (e) { text = ""; } }
+    let raw = "";
+    for (let i = 0; i < Math.min(buf.length, 4e6); i += 65536) raw += String.fromCharCode.apply(null, buf.subarray(i, i + 65536));
+    const meta = raw.match(/(?:prism:doi|pdfx:doi|crossmark:DOI|dc:identifier)[^>]*>\s*(?:doi:)?\s*(10\.\d{4,9}\/[^<\s]+)/i);
+    const firstPage = text.slice(0, 4000);
+    let id = meta ? meta[1] : (findDois(firstPage)[0] || "");
+    if (!id) {
+      const t = raw.match(/\/Title\s*\(((?:\\.|[^\\)]){12,300})\)/);
+      id = t ? t[1].replace(/\\(.)/g, "$1") : cleanText(firstPage.split("\n").find((l) => l.trim().length > 25) || "", 200);
     }
-    const title = text.match(/\/Title\s*\(([^)]{12,300})\)/);
-    return title ? [title[1]] : [];
+    if (!id) return [];
+    if (text.length > 1500) mem.dropped[id.toLowerCase()] = { text, name: file.name };
+    return [id];
   }
   const text = await file.text();
   const dois = findDois(text);
@@ -423,7 +438,7 @@ function minePage(sub) {
     return renderPaper(tree, cat, { topicId: null, pool, crumbs: [["Home", "#/"], ["My papers", "#/mine"], ["Paper"]], rerender: () => minePage(sub) });
   }
   app.innerHTML = `${crumbs([["Home", "#/"], ["My papers"]])}
-    ${banner("Your own papers", "Find the gap between your papers", "Add one paper or several (DOI, arXiv id, OpenAlex link or title, one per line; or drop PDFs or a .bib / .ris file). For each one it builds a local citation tree: its references, who cited them, who cited your paper, and what those people did. Then it checks whether their work applies to yours or is already done, and lists the gaps.", "gap")}
+    ${banner("Your own papers", "Find the gap between your papers", "Add one paper or several (DOI, arXiv id, OpenAlex link or title, one per line; or drop PDFs or a .bib / .ris file). Dropped PDFs are read in full in your browser, and for the others it looks for a free legal copy (arXiv, open-access PDFs). For each one it builds a local citation tree: its references, who cited them, who cited your paper, and what those people did. Then it checks whether their work applies to yours or is already done, and lists the gaps.", "gap")}
     <form class="card form" id="mine-form">
       <label>Papers (one per line)<textarea name="input" placeholder="10.1109/TED.2025.1234567&#10;2501.01234&#10;A title of a paper you want to compare">${esc(S.input || "")}</textarea></label>
       <div class="drop" id="drop" tabindex="0" role="button">Drop PDF, .bib, .ris or .txt files here, or click to choose<input type="file" id="file" multiple accept=".pdf,.bib,.ris,.txt" hidden></div>
@@ -458,17 +473,23 @@ async function buildMine(input, catChoice, useS2) {
   const prog = document.getElementById("mine-progress");
   const say = (t) => { prog.innerHTML = `<p class="progress"><span class="spin"></span>${esc(t)}</p>`; };
   if (!lines.length) { prog.innerHTML = '<div class="notice err">Add at least one DOI, arXiv id or title.</div>'; return; }
-  const src = new Sources({ useS2, pause: 120 });
+  say("Getting ready…");
+  const pdfjs = await loadPdfjs();
+  const src = new Sources({ useS2, pause: 120, pdfjs, keepRx: keepRegexes(D.cfg), timeout: 15000 });
   const seeds = [], missed = [];
   for (const q of lines) {
     say("Finding " + q.slice(0, 60) + "…");
     const p = await src.resolve(q);
-    if (p && !seeds.find((s) => s.id === p.id)) seeds.push(p); else if (!p) missed.push(q);
+    if (p && !seeds.find((s) => s.id === p.id)) {
+      const mine = mem.dropped[q.toLowerCase()];
+      if (mine) attachText(p, mine.text, "Your PDF (" + mine.name + ")", "", keepRegexes(D.cfg));
+      seeds.push(p);
+    } else if (!p) missed.push(q);
   }
   if (!seeds.length) { prog.innerHTML = `<div class="notice err">Could not find ${missed.map(esc).join(", ")} on OpenAlex. Check the DOI, or try the exact title.</div>`; return; }
   const trees = [];
   for (const [i, seed] of seeds.entries()) {
-    const tree = await buildTree(src, seed, { tree: MINE_TREE, onStep: (s) => say(`Paper ${i + 1} of ${seeds.length}: ${s}…`) });
+    const tree = await buildTree(src, seed, { tree: MINE_TREE, fullText: true, onStep: (s) => say(`Paper ${i + 1} of ${seeds.length}: ${s}…`) });
     trees.push(tree);
   }
   const cat = catChoice === "auto" ? guessCategory(trees.map((t) => t.seed), D.cfg) : catById(catChoice);

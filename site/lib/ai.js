@@ -20,10 +20,10 @@ export const SYSTEM =
   "You are a research adviser for semiconductor device researchers (NAND, DRAM, power and wide-bandgap devices). " +
   "You get one or more target papers, their citation tree (references, the base paper, papers citing them, and papers " +
   "building on the base paper), related recent papers from the same field, and a list of candidate gaps found by keyword rules. " +
-  "Using only the supplied titles and abstracts: write 'summary' (at most 80 words: what the target paper(s) did, and at which " +
+  "Using only the supplied titles, abstracts and full-text excerpts (where a free full text was found): write 'summary' (at most 80 words: what the target paper(s) did, and at which " +
   "stage: simulation/TCAD only, fabricated and measured, or used in a circuit); 'base_reason' (one or two sentences on why the " +
   "base paper matters to the target and what the target changed); 'gaps' (3-6 concrete research gaps, best first: confirm, sharpen " +
-  "or reject the candidate gaps and add better ones. Typical gaps: simulated but never fabricated; a physical effect or TCAD model " +
+  "or reject the candidate gaps and add better ones; the authors' own stated limitations and future work are strong leads, but check whether a citing paper has already done them. Typical gaps: simulated but never fabricated; a physical effect or TCAD model " +
   "missing; a device never evaluated in a circuit (name the compact model and EDA tool, e.g. Verilog-A + Cadence Spectre, ASM-HEMT, " +
   "LTspice/PLECS, ngspice); a technique from a related paper that could apply. Each gap cites the ids of the papers it rests on, " +
   "and gives 3-5 next steps a PhD student could start this month); 'applicability' (for up to 8 of the most relevant related or " +
@@ -32,7 +32,10 @@ export const SYSTEM =
 
 function brief(p, cat, cfg, n = 450) {
   const pr = profile(p, cat, cfg);
-  return { id: p.id, title: p.title, year: p.year, venue: p.venue, stage: STAGES[pr.stage].short, features: pr.features, abstract: cleanText(p.abstract, n), why_cited: p.why && p.why.context || undefined };
+  const out = { id: p.id, title: p.title, year: p.year, venue: p.venue, stage: STAGES[pr.stage].short, judged_from: pr.basis, features: pr.features, abstract: cleanText(p.abstract, n), why_cited: p.why && p.why.context || undefined };
+  if (n >= 800 && p.body) out.full_text_excerpt = cleanText(p.body, n >= 2000 ? 3500 : 1200);
+  if (p.future && p.future.length) out.authors_limitations_and_future_work = p.future;
+  return out;
 }
 
 // One or several trees (the user's own papers) -> the user message.
