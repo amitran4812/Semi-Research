@@ -110,3 +110,25 @@ test("full-text helpers", () => {
   assert.equal(c.future.length, 1);
   assert.match(c.body, /fabricated/);
 });
+
+test("OpenAlex: phrases in one OR search, API key sent, stops when the daily budget is spent", async () => {
+  const seen = [];
+  let n = 0;
+  const fetch = async (url) => {
+    seen.push(url);
+    n++;
+    if (n >= 2) return { ok: false, status: 429, headers: new Map([["x-ratelimit-remaining", "0"]]), json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ results: [] }) };
+  };
+  const logs = [];
+  const s = new Sources({ fetch, pause: 0, oaKey: "k123", log: (m) => logs.push(m) });
+  await s.search(["3D NAND", "charge trap flash"], { since: "2026-01-01" });
+  const u = new URL(seen[0]);
+  assert.equal(u.searchParams.get("search"), '"3D NAND" OR "charge trap flash"');
+  assert.equal(u.searchParams.get("api_key"), "k123");
+  assert.deepEqual(await s.search("x"), [], "a spent budget returns no papers instead of failing");
+  const before = seen.length;
+  await s.search("y");
+  assert.equal(seen.length, before, "no more OpenAlex requests once the budget is spent");
+  assert.ok(s.oaOut && !logs.join(" ").includes("k123"), "key never logged");
+});

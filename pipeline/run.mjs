@@ -37,6 +37,7 @@ const TREE_MAX_AGE_DAYS = 14;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const src = new Sources({
   mailto: process.env.OPENALEX_EMAIL || "",
+  oaKey: process.env.OPENALEX_API_KEY || "",
   unpaywallEmail: process.env.UNPAYWALL_EMAIL || process.env.OPENALEX_EMAIL || "",
   s2Key: process.env.S2_API_KEY || "",
   coreKey: process.env.CORE_API_KEY || "",
@@ -95,10 +96,9 @@ export function pickSeeds(papers, n) {
 async function topicPapers(cat, topic, since) {
   const byId = new Map();
   const add = (p) => { if (p.id && !byId.has(p.id)) byId.set(p.id, p); };
-  for (const phrase of topic.search) {
-    (await src.search(phrase, { since, issns: cat.venues_issn, perPage: 25 })).forEach(add);
-    (await src.search(phrase, { since, perPage: 40 })).forEach(add);
-  }
+  // One search for the core journals, one for everything: all of the topic's phrases in each.
+  (await src.search(topic.search, { since, issns: cat.venues_issn, perPage: 60 })).forEach(add);
+  (await src.search(topic.search, { since, perPage: 120 })).forEach(add);
   const rx = phraseRegex(topic.search);
   return [...byId.values()].filter((p) => rx.test(p.title + " " + p.abstract));
 }
@@ -130,16 +130,16 @@ export async function topicTrend(cat, topic, pool, { ai = false, now = new Date(
 
 // Extra search with the briefing's phrases. A paper found this way must still be about this field.
 async function trendPapers(cat, topic, terms, since, have) {
+  if (!terms.length) return [];
   const catRx = phraseRegex(cat.topics.flatMap((t) => t.search));
+  const rxs = terms.map((t) => [t, phraseRegex([t])]);
   const out = [];
-  for (const term of terms) {
-    const rx = phraseRegex([term]);
-    for (const p of await src.search(term, { since, perPage: (cfg.trend && cfg.trend.extra_per_term) || 25 })) {
-      const text = p.title + " " + p.abstract;
-      if (have.has(p.id) || !rx.test(text) || !catRx.test(text)) continue;
-      have.add(p.id);
-      out.push({ ...p, via: term });
-    }
+  for (const p of await src.search(terms, { since, perPage: ((cfg.trend && cfg.trend.extra_per_term) || 25) * 2 })) {
+    const text = p.title + " " + p.abstract;
+    const hit = rxs.find(([, rx]) => rx.test(text));
+    if (have.has(p.id) || !hit || !catRx.test(text)) continue;
+    have.add(p.id);
+    out.push({ ...p, via: hit[0] });
   }
   return out;
 }
@@ -230,6 +230,11 @@ async function main() {
   };
   await writeJson(path.join(DATA, "index.json"), out);
   log(`Done. API calls: ${src.calls} (papers), ${aiCalls} (Claude).`);
+  if (src.oaOut) {
+    log("WARNING: OpenAlex's daily budget ran out, so some topics kept last week's data or have no papers. " +
+      (process.env.OPENALEX_API_KEY ? "Run again after midnight UTC." : "Add a free OpenAlex API key as the OPENALEX_API_KEY secret (10x the budget)."));
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "⚠️ OpenAlex daily budget ran out during this run; some topics have no new papers.\n");
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
