@@ -6,6 +6,7 @@ import { buildTree } from "./lib/tree.js";
 import { analyzeTree, coverage, guessCategory, keepRegexes, profile, topicGaps, GAP_TYPES, STAGES } from "./lib/engine.js";
 import { findDois, cleanText } from "./lib/text.js";
 import { PROVIDERS, analyzeWithAI, complete, buildPrompt, parseJson, CHAT_SYSTEM } from "./lib/ai.js";
+import { actionPlan } from "./lib/plan.js";
 import { exportKey, importKey, isSealed, open as openBox, unlock, CHECK } from "./lib/lock.js";
 import { ruleBriefing, trendPrompt, trendTerms, TREND_SYSTEM, TREND_SCHEMA } from "./lib/trends.js";
 
@@ -125,8 +126,8 @@ async function categoryPool(cat) {
 // ------------------------------------------------------------------ gaps
 function normGaps(analysis, ai) {
   const out = [];
-  if (ai && ai.gaps) ai.gaps.forEach((g) => out.push({ source: "ai", title: g.title, stage: g.stage, why: g.why, evidence: g.evidence_ids || [], steps: g.next_steps || [], tools: g.tools || [] }));
-  (analysis.gaps || []).forEach((g) => out.push({ source: "rules", type: g.type, title: g.title, stage: GAP_TYPES[g.type].stage, label: GAP_TYPES[g.type].label, why: g.why, evidence: g.evidence || [], steps: g.steps || [], tools: g.tools || [], compact: g.compact_model, quotes: g.quotes }));
+  if (ai && ai.gaps) ai.gaps.forEach((g) => out.push({ source: "ai", title: g.title, stage: g.stage, why: g.why, evidence: g.evidence_ids || [], steps: g.next_steps || [], tools: g.tools || [], outcome: g.expected_outcome || "" }));
+  (analysis.gaps || []).forEach((g) => out.push({ source: "rules", type: g.type, feature: g.feature, title: g.title, stage: GAP_TYPES[g.type].stage, label: GAP_TYPES[g.type].label, why: g.why, evidence: g.evidence || [], steps: g.steps || [], tools: g.tools || [], compact: g.compact_model, quotes: g.quotes }));
   return out;
 }
 function gapTile(g, i, from) {
@@ -135,16 +136,27 @@ function gapTile(g, i, from) {
     <h3>${esc(g.title)}</h3>
     <p>${esc(g.why)}</p>
     ${from ? `<div class="from">From: ${esc(from)}</div>` : ""}
-    <div class="foot"><span>${g.evidence.length ? g.evidence.length + " supporting paper" + (g.evidence.length > 1 ? "s" : "") : ""}</span><span class="read">Next steps →</span></div>
+    <div class="foot"><span>${g.evidence.length ? g.evidence.length + " supporting paper" + (g.evidence.length > 1 ? "s" : "") : ""}</span><span class="read">${g.route ? esc(g.route) + " →" : "Next steps →"}</span></div>
   </button>`;
 }
 function gapGrid(gaps, lookup, cat, froms) {
   if (!gaps.length) return empty("No gaps found by the checks for this paper.");
+  gaps.forEach((g) => { if (!g.plan) { g.plan = actionPlan(g, cat); g.route = g.plan && g.plan.short; } });
   const html = `<div class="tiles gaps">${gaps.map((g, i) => gapTile(g, i, froms && froms[i])).join("")}</div>`;
   setTimeout(() => {
     app.querySelectorAll(".gap-tile[data-gap]").forEach((el) => el.addEventListener("click", () => openGap(gaps[+el.dataset.gap], lookup, cat)));
   });
   return html;
+}
+function planHtml(plan, g) {
+  return `<section class="plan">
+    <h4>Your plan: ${esc(plan.label)}</h4>
+    <p class="small muted">${esc(plan.effort)}. Work through the phases in order; each one names the tools and what to set up.</p>
+    ${plan.phases.map((ph, i) => `<div class="phase"><div class="ph-head"><span class="ph-n">${i + 1}</span><b>${esc(ph.title)}</b></div>
+      ${ph.tools.length ? `<div class="tags">${ph.tools.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+      <ul>${ph.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>`).join("")}
+    <div class="outcome"><span class="eyebrow">What you get at the end</span><p>${esc(g.outcome || plan.outcome)}</p></div>
+  </section>`;
 }
 function openGap(g, lookup, cat) {
   const ev = g.evidence.map((id) => lookup(id)).filter(Boolean);
@@ -153,9 +165,9 @@ function openGap(g, lookup, cat) {
     <div class="meta"><span class="badge st">${esc(g.stage || "")}</span>${g.source === "ai" ? '<span class="badge ai">AI</span>' : `<span class="small muted">${esc(g.label || "Rule check")}</span>`}</div>
     <h2>${esc(g.title)}</h2>
     ${g.quotes ? `<p>The paper's own words:</p>${g.quotes.map((q) => `<blockquote class="why">${esc(q)}</blockquote>`).join("")}` : `<p>${esc(g.why)}</p>`}
-    ${g.compact ? `<h4>Compact model</h4><p>${esc(g.compact)}</p>` : ""}
-    ${g.steps.length ? `<h4>What you can do</h4><ol>${g.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
-    ${g.tools.length ? `<h4>Tools</h4><div class="tags">${g.tools.map((t) => `<span class="tag topic">${esc(t)}</span>`).join("")}</div>` : ""}
+    ${g.steps.length ? `<h4>${g.plan ? "First, for this paper" : "What you can do"}</h4><ol>${g.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+    ${g.tools.length ? `<div class="tags">${g.tools.map((t) => `<span class="tag topic">${esc(t)}</span>`).join("")}</div>` : ""}
+    ${g.plan ? planHtml(g.plan, g) : g.compact ? `<h4>Compact model</h4><p>${esc(g.compact)}</p>` : ""}
     ${ev.length ? `<h4>Based on these papers</h4><div class="list">${ev.map((p) => paperCard(p, cat)).join("")}</div>` : ""}
   </div></div>`;
   const close = () => { overlayRoot.innerHTML = ""; document.removeEventListener("keydown", onKey); };
