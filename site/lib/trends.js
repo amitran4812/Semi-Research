@@ -127,7 +127,7 @@ export function trendTerms(topic, rising, aiTerms = []) {
 }
 
 // Without an AI key: the briefing from the hand-written background plus the numbers.
-export function ruleBriefing(topic, { years = [], rising = [], news = [] } = {}) {
+export function ruleBriefing(topic, { years = [], rising = [], news = [], filers = [] } = {}) {
   const b = topic.brief || {};
   const g = growth(years);
   const nums = [];
@@ -137,7 +137,7 @@ export function ruleBriefing(topic, { years = [], rising = [], news = [] } = {})
   return {
     why_hot: [b.why, ...nums].filter(Boolean).join(" "),
     core_idea: b.idea || "",
-    industry_now: [b.industry, news.length ? `Recent headlines are listed below; ${news.length} in the last two months.` : ""].filter(Boolean).join(" "),
+    industry_now: [b.industry, filers.length ? `Most patent families published in the last year: ${filers.slice(0, 4).map((f) => `${f.name} (${f.count})`).join(", ")}.` : "", news.length ? `Recent headlines are listed below; ${news.length} in the last two months.` : ""].filter(Boolean).join(" "),
     open_questions: b.questions || [],
     search_terms: trendTerms(topic, rising),
     by: "rules",
@@ -153,7 +153,7 @@ export const TREND_SCHEMA = {
 
 export const TREND_SYSTEM =
   "You brief a semiconductor device researcher on one research topic before they look for a research gap. Answer these questions " +
-  "from the material supplied (papers per year, terms rising in recent papers, recent news headlines, recent paper titles and a " +
+  "from the material supplied (papers per year, terms rising in recent papers, recent news headlines, who filed patents in the last year, recent paper titles and a " +
   "hand-written background): Why is this topic trending, and why is it hot right now? What is the core idea behind it? What is " +
   "happening in the market and what is industry doing (products, roadmaps, standards, who is investing)? Write 'why_hot' (2-4 " +
   "sentences, use the numbers), 'core_idea' (1-3 sentences, the device physics or architecture idea), 'industry_now' (2-4 " +
@@ -170,6 +170,7 @@ export function trendPrompt(topic, cat, inputs) {
     papers_per_year: inputs.years || [], growth: growth(inputs.years || []),
     rising_terms: (inputs.rising || []).map((r) => `${r.term} (in ${r.share}% of recent papers, ${r.ratio}x the share three years ago)`),
     news_last_60_days: (inputs.news || []).map((n) => `${n.date} ${n.source ? n.source + ": " : ""}${n.title}`),
+    patent_filers_last_year: (inputs.filers || []).map((f) => `${f.name} (${f.count} patent families)`),
     recent_paper_titles: (inputs.titles || []).slice(0, 30),
   };
   return "Topic material (JSON):\n" + JSON.stringify(payload);

@@ -588,3 +588,27 @@ body.locked #nav, body.locked #key-btn, body.locked .site-footer { display: none
 .plan .phase li { margin: .25rem 0; font-size: .93rem; }
 .plan .outcome { background: var(--red-soft); border-radius: 12px; padding: .8rem 1rem; margin-top: .9rem; }
 .plan .outcome p { margin: .2rem 0 0; }
+
+/* Patents */
+.badge.pat { background: var(--bg-alt); color: var(--text); border: 1px solid var(--border); }
+.badge.ip.open { background: #e7f6ec; color: #0f7b3f; }
+.badge.ip.crowded { background: #fff3dc; color: #8a5a00; }
+:root[data-theme="dark"] .badge.ip.open { background: #0f2a1a; color: #3ddc84; }
+:root[data-theme="dark"] .badge.ip.crowded { background: #2b2008; color: #ffc65c; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge.ip.open { background: #0f2a1a; color: #3ddc84; }
+  :root:not([data-theme="light"]) .badge.ip.crowded { background: #2b2008; color: #ffc65c; }
+}
+ul.filers { list-style: none; padding: 0; margin: .5rem 0 0; }
+ul.filers li { display: grid; grid-template-columns: minmax(0, 11rem) 1fr 2.2rem; gap: .6rem; align-items: center; padding: .28rem 0; font-size: .9rem; }
+ul.filers li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ul.filers li i { display: block; height: 10px; width: var(--w); min-width: 4px; background: var(--red); border-radius: 0 4px 4px 0; }
+ul.filers li b { text-align: right; font-variant-numeric: tabular-nums; }
+table.ipmap { width: 100%; font-size: .88rem; }
+table.ipmap th { text-align: left; color: var(--muted); font-weight: 600; font-size: .78rem; }
+table.ipmap td.c, table.ipmap th:nth-child(2), table.ipmap th:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+.pat-list summary { cursor: pointer; font-weight: 700; margin: .4rem 0 .8rem; }
+.patent .pat-links { margin: .6rem 0 .2rem; }
+.patent .pat-links ul { margin: .3rem 0 0; padding-left: 1.1rem; font-size: .9rem; }
+.patent .pat-links li { margin: .25rem 0; }
+.notice.ipnote { background: var(--bg-alt); color: var(--text); border: 1px solid var(--border); margin: 1rem 0 0; }

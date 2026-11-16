@@ -8,6 +8,7 @@
 //   node pipeline/run.mjs --refresh       rebuild trees even when they are recent
 //   node pipeline/run.mjs --no-fulltext   skip reading free full texts
 //   node pipeline/run.mjs --no-trends     skip the topic briefing and its extra search
+//   node pipeline/run.mjs --no-patents    skip the patent search
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,6 +20,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { phraseRegex } from "../site/lib/text.js";
 import { isSealed, newLock, open, seal, unlock } from "../site/lib/lock.js";
 import { claudeAnalysis, claudeTrend } from "./claude.mjs";
+import { Ops, ipMap, linkPatents, slimPatent, topFilers } from "../site/lib/patents.js";
 import { growth, newsUrl, parseRss, parseYearCounts, risingTerms, ruleBriefing, trendTerms } from "../site/lib/trends.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +37,8 @@ const refresh = flag("--refresh");
 const TREE_MAX_AGE_DAYS = 14;
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
+const ops = new Ops({ key: process.env.EPO_OPS_KEY || "", secret: process.env.EPO_OPS_SECRET || "", log });
+const PATENT_DAYS = 365;
 const src = new Sources({
   mailto: process.env.OPENALEX_EMAIL || "",
   oaKey: process.env.OPENALEX_API_KEY || "",
@@ -108,7 +112,7 @@ async function topicPapers(cat, topic, since) {
  * what is industry doing) from papers per year, terms rising against three years ago, recent news
  * and the hand-written background; Claude writes it when a key is set, rules otherwise.
  */
-export async function topicTrend(cat, topic, pool, { ai = false, now = new Date() } = {}) {
+export async function topicTrend(cat, topic, pool, { ai = false, now = new Date(), filers = [] } = {}) {
   const T = cfg.trend || {};
   const from = T.years_from || 2016;
   const back = T.older_window_years || 3;
@@ -118,7 +122,7 @@ export async function topicTrend(cat, topic, pool, { ai = false, now = new Date(
   const older = await src.sample(topic.search, { from: oFrom, to: oTo });
   const rising = risingTerms(pool, older, { exclude: topic.search });
   const news = parseRss(await src.text(newsUrl(topic)), 8);
-  const inputs = { years, rising, news, titles: pool.slice(0, 30).map((p) => p.title) };
+  const inputs = { years, rising, news, filers, titles: pool.slice(0, 30).map((p) => p.title) };
   let brief = null;
   if (ai) {
     const r = await claudeTrend(topic, cat, inputs, log);
@@ -144,6 +148,16 @@ async function trendPapers(cat, topic, terms, since, have) {
   return out;
 }
 
+// Patent families published in the last year for the topic's phrases (EPO OPS). null when unavailable.
+async function topicPatents(topic) {
+  if (ops.off || flag("--no-patents")) return null;
+  const since = new Date(Date.now() - PATENT_DAYS * 86400000).toISOString().slice(0, 10);
+  const list = await ops.search(topic.search, { since, max: 200 });
+  if (ops.off) return null;
+  log(`   ${topic.id}: ${list.length} patent families since ${since}`);
+  return list;
+}
+
 async function main() {
   const since = new Date(Date.now() - cfg.lookback_days * 86400000).toISOString().slice(0, 10);
   await setupLock(process.env.GAPFINDER_ACCESS_CODE || "");
@@ -155,13 +169,14 @@ async function main() {
   for (const cat of cfg.categories) {
     if (only && !only.includes(cat.id)) continue;
     log(`== ${cat.name}`);
-    const pools = {}, trends = {};
+    const pools = {}, trends = {}, patents = {};
     for (const topic of cat.topics) {
       let pool = (await topicPapers(cat, topic, since)).map((p) => ({ ...p, topic: topic.id }));
       log(`   ${topic.id}: ${pool.length} recent papers`);
       if (!flag("--no-trends")) {
         const old = (await readJson(path.join(DATA, "topics", topic.id + ".json"), {})).trend;
-        let tr = await topicTrend(cat, topic, pool, { ai: useAI });
+        const pats = patents[topic.id] = await topicPatents(topic);
+        let tr = await topicTrend(cat, topic, pool, { ai: useAI, filers: pats ? topFilers(pats, 6) : [] });
         if (tr.by === "ai") aiCalls++;
         if (!tr.years.length && !tr.news.length && old) { log(`   ${topic.id}: trend sources down, keeping the previous briefing`); tr = old; }
         trends[topic.id] = tr;
@@ -206,17 +221,33 @@ async function main() {
         tree.top_gap = (tree.ai && tree.ai.gaps && tree.ai.gaps[0] && tree.ai.gaps[0].title) || (analysis.gaps[0] && analysis.gaps[0].title) || "";
         trees.push(tree);
       }
+      // Patents: link them to this topic's papers and tree papers, then map papers against patents.
+      let pat = null;
+      const fresh = patents[topic.id] !== undefined ? patents[topic.id] : await topicPatents(topic);
+      if (fresh) {
+        const linkable = [...pool, ...trees.flatMap((t) => [t.seed, ...Object.values(t.nodes || {})])];
+        const seen = new Set();
+        linkPatents(fresh, linkable.filter((p) => p && p.id && !seen.has(p.id) && seen.add(p.id)));
+        pat = {
+          patents: fresh.slice(0, 60).map(slimPatent), patents_total: fresh.length, patents_since: new Date(Date.now() - PATENT_DAYS * 86400000).toISOString().slice(0, 10),
+          filers: topFilers(fresh, 10), ip: ipMap(fresh, pool, cat, cfg),
+        };
+      } else if (old.patents) {
+        pat = { patents: old.patents, patents_total: old.patents_total, patents_since: old.patents_since, filers: old.filers, ip: old.ip };
+      }
       const poolSlim = pool
         .sort((a, b) => String(b.date).localeCompare(String(a.date)))
         .slice(0, 90)
         .map((p) => ({ ...slim(p, 500), topic: topic.id, ...(p.via ? { via: p.via } : {}) }));
-      await writeJson(file, { topic: topic.id, category: cat.id, updated: new Date().toISOString(), since, pool: poolSlim, seeds: trees, trend: trends[topic.id] || old.trend || null });
+      await writeJson(file, { topic: topic.id, category: cat.id, updated: new Date().toISOString(), since, pool: poolSlim, seeds: trees, trend: trends[topic.id] || old.trend || null, ...(pat || {}) });
       topicsOut.push({
         id: topic.id, name: topic.name, papers: pool.length, seeds: trees.length,
         tx: pool.filter((p) => p.tx).length,
         gaps: trees.reduce((n, t) => n + ((t.ai && t.ai.gaps && t.ai.gaps.length) || t.rule_gaps || 0), 0),
         top_gap: (trees[0] && trees[0].top_gap) || "",
         via_trend: pool.filter((p) => p.via).length,
+        patents: pat ? pat.patents_total : 0,
+        top_filer: pat && pat.filers && pat.filers[0] ? pat.filers[0].name : "",
         trend: trends[topic.id] ? { yoy: trends[topic.id].growth.yoy, rising: (trends[topic.id].rising || []).slice(0, 3).map((r) => r.term), news: (trends[topic.id].news || []).length } : undefined,
       });
     }
@@ -229,7 +260,8 @@ async function main() {
     categories: cfg.categories.map((c) => catIndex[c.id]).filter(Boolean),
   };
   await writeJson(path.join(DATA, "index.json"), out);
-  log(`Done. API calls: ${src.calls} (papers), ${aiCalls} (Claude).`);
+  log(`Done. API calls: ${src.calls} (papers), ${ops.calls} (patents), ${aiCalls} (Claude).`);
+  if (ops.off && !process.env.EPO_OPS_KEY) log("No EPO_OPS_KEY / EPO_OPS_SECRET secrets: patents were skipped.");
   if (src.oaOut) {
     log("WARNING: OpenAlex's daily budget ran out, so some topics kept last week's data or have no papers. " +
       (process.env.OPENALEX_API_KEY ? "Run again after midnight UTC." : "Add a free OpenAlex API key as the OPENALEX_API_KEY secret (10x the budget)."));
