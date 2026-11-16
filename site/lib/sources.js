@@ -15,12 +15,16 @@ export const OPENALEX = "https://api.openalex.org/works";
 export const S2 = "https://api.semanticscholar.org/graph/v1/paper";
 const SELECT = "id,doi,display_name,publication_date,publication_year,primary_location,cited_by_count,abstract_inverted_index,authorships,referenced_works,type,open_access,best_oa_location,locations";
 
+const redact = (u) => String(u).replace(/(api_key|email)=[^&]+/g, "$1=***");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export class Sources {
   constructor(opts = {}) {
     this.fetch = opts.fetch || ((...a) => globalThis.fetch(...a));
     this.mailto = opts.mailto || "";
+    this.oaKey = opts.oaKey || "";            // OpenAlex API key: free, 10x the daily budget of no key
+    this.oaOut = false;                       // OpenAlex daily budget used up: stop asking until tomorrow
+    this.oaFails = 0;
     this.s2Key = opts.s2Key || "";
     this.unpaywallEmail = opts.unpaywallEmail || "";
     this.coreKey = opts.coreKey || "";
@@ -36,6 +40,8 @@ export class Sources {
 
   async getJson(url, headers, retries = 3) {
     if (this.cache.has(url)) return this.cache.get(url);
+    const isOA = url.startsWith(OPENALEX);
+    if (isOA && this.oaOut) return null;
     let delay = 1500;
     for (let i = 1; i <= retries; i++) {
       try {
@@ -43,16 +49,26 @@ export class Sources {
         const init = headers ? { headers } : {};
         if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) init.signal = AbortSignal.timeout(this.timeout);
         const r = await this.fetch(url, init);
+        if (isOA && r.status === 429) {
+          // OpenAlex sends 429 both for too many requests per second and for a spent daily budget.
+          const left = r.headers && r.headers.get ? r.headers.get("x-ratelimit-remaining") : null;
+          if (left === "0" || ++this.oaFails >= 6) {
+            this.oaOut = true;
+            this.log("OpenAlex daily budget is used up (it resets at midnight UTC); skipping further OpenAlex requests in this run.");
+            return null;
+          }
+        }
         if (r.ok) {
+          if (isOA) this.oaFails = 0;
           const j = await r.json();
           this.cache.set(url, j);
           if (this.pause) await sleep(this.pause);
           return j;
         }
-        if (![429, 500, 502, 503, 504].includes(r.status)) { this.log(`GET ${url} -> ${r.status}`); return null; }
-        this.log(`GET ${url} -> ${r.status} (attempt ${i})`);
+        if (![429, 500, 502, 503, 504].includes(r.status)) { this.log(`GET ${redact(url)} -> ${r.status}`); return null; }
+        this.log(`GET ${redact(url)} -> ${r.status} (attempt ${i})`);
       } catch (e) {
-        this.log(`GET ${url} failed: ${e.message} (attempt ${i})`);
+        this.log(`GET ${redact(url)} failed: ${e.message} (attempt ${i})`);
       }
       await sleep(delay);
       delay *= 2;
@@ -60,25 +76,32 @@ export class Sources {
     return null;
   }
 
+  oaAuth(p) {
+    if (this.mailto) p.set("mailto", this.mailto);
+    if (this.oaKey) p.set("api_key", this.oaKey);
+  }
+
   oa(params) {
     const p = new URLSearchParams({ select: SELECT, ...params });
-    if (this.mailto) p.set("mailto", this.mailto);
+    this.oaAuth(p);
     return this.getJson(OPENALEX + "?" + p.toString());
   }
 
   // Recent papers for a search phrase, optionally only from the given journals (ISSNs).
-  async search(phrase, { since, issns, perPage = 50 } = {}) {
+  // Several phrases go in one query ("a" OR "b"): OpenAlex charges per search, not per phrase.
+  async search(phrases, { since, issns, perPage = 50 } = {}) {
     const f = ["has_abstract:true", "type:article|review"];
     if (since) f.push("from_publication_date:" + since);
     if (issns && issns.length) f.push("primary_location.source.issn:" + issns.join("|"));
-    const j = await this.oa({ search: `"${phrase}"`, filter: f.join(","), sort: "publication_date:desc", "per-page": String(perPage) });
+    const q = [].concat(phrases).filter(Boolean).map((x) => `"${String(x).replace(/"/g, "")}"`).join(" OR ");
+    const j = await this.oa({ search: q, filter: f.join(","), sort: "publication_date:desc", "per-page": String(Math.min(200, perPage)) });
     return (j && j.results || []).map(toPaper);
   }
 
   // Papers per publication year for a set of phrases (OpenAlex group_by), for the trend chart.
   async yearCounts(phrases, from) {
     const p = new URLSearchParams({ search: phrases.map((q) => `"${q}"`).join(" OR "), filter: `from_publication_date:${from}-01-01,type:article|review`, group_by: "publication_year" });
-    if (this.mailto) p.set("mailto", this.mailto);
+    this.oaAuth(p);
     return this.getJson(OPENALEX + "?" + p.toString());
   }
 
@@ -117,7 +140,7 @@ export class Sources {
     let m;
     const one = async (path) => {
       const p = new URLSearchParams({ select: SELECT });
-      if (this.mailto) p.set("mailto", this.mailto);
+      this.oaAuth(p);
       const j = await this.getJson(OPENALEX + "/" + path + "?" + p.toString());
       return j && j.id ? toPaper(j) : null;
     };

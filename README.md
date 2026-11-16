@@ -53,7 +53,8 @@ The site is then at `https://<user>.github.io/<repo>/`.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Actions *secret* | Claude refines the gaps for every tree during the scheduled build (marked **AI** on the site). Without it, the rule-based gaps are shown, and visitors can still use their own key. |
 | `GAPFINDER_MODEL` | Actions *variable* | Claude model for the build. Default `claude-opus-5-5`. |
-| `OPENALEX_EMAIL` | Actions *variable* | Contact email for OpenAlex's faster "polite pool". |
+| `OPENALEX_API_KEY` | Actions *secret* | **Recommended.** Free key from openalex.org (Settings → API key). Without one OpenAlex allows about $0.10 of queries a day, which runs out partway through a full build; a free key gives $1 a day, enough for all 28 topics. |
+| `OPENALEX_EMAIL` | Actions *variable* | Contact email sent with OpenAlex requests. |
 | `S2_API_KEY` | Actions *secret* | Semantic Scholar key (free on request) for higher rate limits. |
 | `UNPAYWALL_EMAIL` | Actions *variable* | Email Unpaywall asks for; turns on Unpaywall open-access lookups (falls back to `OPENALEX_EMAIL`). |
 | `CORE_API_KEY` | Actions *secret* | Free key from core.ac.uk; adds full texts from university repositories. |
