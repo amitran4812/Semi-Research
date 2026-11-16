@@ -166,9 +166,13 @@ async function main() {
   const catIndex = Object.fromEntries((index.categories || []).map((c) => [c.id, c]));
   let aiCalls = 0;
 
-  for (const cat of cfg.categories) {
+  // Fields fetched longest ago go first, so a run that runs out of OpenAlex budget (no key: about
+  // 130 calls a day) fills the fields the last run never reached instead of redoing the same ones.
+  const order = fetchOrder(cfg.categories, catIndex);
+  for (const cat of order) {
     if (only && !only.includes(cat.id)) continue;
     log(`== ${cat.name}`);
+    const outBefore = src.oaOut;
     const pools = {}, trends = {}, patents = {};
     for (const topic of cat.topics) {
       let pool = (await topicPapers(cat, topic, since)).map((p) => ({ ...p, topic: topic.id }));
@@ -251,7 +255,10 @@ async function main() {
         trend: trends[topic.id] ? { yoy: trends[topic.id].growth.yoy, rising: (trends[topic.id].rising || []).slice(0, 3).map((r) => r.term), news: (trends[topic.id].news || []).length } : undefined,
       });
     }
-    catIndex[cat.id] = { id: cat.id, name: cat.name, topics: topicsOut, updated: new Date().toISOString() };
+    const prevFetched = catIndex[cat.id] && catIndex[cat.id].fetched;
+    // Only a field whose searches all ran counts as fetched; one cut short by the budget goes first next time.
+    const fetched = !outBefore && !src.oaOut ? new Date().toISOString() : prevFetched;
+    catIndex[cat.id] = { id: cat.id, name: cat.name, topics: topicsOut, updated: new Date().toISOString(), ...(fetched ? { fetched } : {}) };
   }
 
   const out = {
@@ -267,6 +274,12 @@ async function main() {
       (process.env.OPENALEX_API_KEY ? "Run again after midnight UTC." : "Add a free OpenAlex API key as the OPENALEX_API_KEY secret (10x the budget)."));
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "⚠️ OpenAlex daily budget ran out during this run; some topics have no new papers.\n");
   }
+}
+
+/** Categories in fetch order: never fully fetched first, then oldest fetch; ties keep config order. */
+export function fetchOrder(categories, catIndex = {}) {
+  const at = (c) => Date.parse((catIndex[c.id] || {}).fetched || "") || 0;
+  return categories.map((c, i) => ({ c, i })).sort((a, b) => at(a.c) - at(b.c) || a.i - b.i).map((x) => x.c);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

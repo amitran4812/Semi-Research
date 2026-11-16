@@ -6,7 +6,7 @@ import { buildTree } from "../site/lib/tree.js";
 import { analyzeTree, profile, coverage, guessCategory } from "../site/lib/engine.js";
 import { findDois, phraseRegex } from "../site/lib/text.js";
 import { SCHEMA, buildPrompt, parseJson } from "../site/lib/ai.js";
-import { pickSeeds } from "../pipeline/run.mjs";
+import { pickSeeds, fetchOrder } from "../pipeline/run.mjs";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { keepRegexes } from "../site/lib/engine.js";
 import { condense, htmlToText, stripReferences } from "../site/lib/fulltext.js";
@@ -156,4 +156,11 @@ test("every gap gets a step-by-step plan with tools, runs and an outcome", async
     const g = { tcad: { type: "missing_feature", feature: c.features[0].id }, fab: { type: "not_fabricated" }, circuit: { type: "not_in_circuit" }, study: { type: "authors_future_work" } }[t];
     assert.ok(actionPlan(g, c).phases.length >= 3, c.id + " " + t);
   }
+});
+
+test("fetch order: fields the budget never reached go first, then the oldest", () => {
+  const cats = ["nand", "hbm", "dram", "power"].map((id) => ({ id }));
+  const idx = { nand: { fetched: "2026-11-16T02:00:00Z" }, hbm: { fetched: "2026-11-09T02:00:00Z" }, dram: {} };
+  assert.deepEqual(fetchOrder(cats, idx).map((c) => c.id), ["dram", "power", "hbm", "nand"]);
+  assert.deepEqual(fetchOrder(cats).map((c) => c.id), ["nand", "hbm", "dram", "power"]);
 });
