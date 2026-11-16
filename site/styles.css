@@ -576,3 +576,15 @@ body.locked #nav, body.locked #key-btn, body.locked .site-footer { display: none
 .form.lock .notice { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .linkish { background: none; border: 0; padding: 0; color: var(--red); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Gap action plan */
+.plan { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.plan h4 { margin: 0 0 .2rem; }
+.plan .phase { border: 1px solid var(--border); border-radius: 12px; padding: .8rem 1rem; margin: .7rem 0; background: var(--card); }
+.plan .ph-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.plan .ph-n { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--red); color: #fff; font-weight: 700; font-size: .85rem; flex: none; }
+.plan .phase .tags { margin: .2rem 0 .4rem; }
+.plan .phase ul { margin: .2rem 0 0; padding-left: 1.2rem; }
+.plan .phase li { margin: .25rem 0; font-size: .93rem; }
+.plan .outcome { background: var(--red-soft); border-radius: 12px; padding: .8rem 1rem; margin-top: .9rem; }
+.plan .outcome p { margin: .2rem 0 0; }

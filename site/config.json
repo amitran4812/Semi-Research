@@ -433,7 +433,53 @@
           "Re-run with retention / disturb shifts applied to show how the device change affects bit errors."
         ]
       },
-      "group": "memory"
+      "group": "memory",
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device)",
+            "Silvaco Victory Process + Victory Device / Atlas"
+          ],
+          "structure": "One channel-hole string segment with 3 to 5 word lines, so the neighbouring cells are included: oxide core, poly-Si macaroni channel, tunnel oxide, Si3N4 charge-trap layer, blocking oxide, metal word lines. A 2D axisymmetric model is enough for one cell; use 3D for interference, lateral migration or hole-shape effects.",
+          "models": [
+            "Drift-diffusion with doping- and field-dependent mobility",
+            "Nonlocal tunneling (Fowler-Nordheim and direct) through the tunnel oxide",
+            "Traps in the Si3N4 layer: energy, density and capture cross-section",
+            "Grain-boundary traps in the poly-Si channel",
+            "Hot-carrier injection, if the program scheme uses it"
+          ],
+          "runs": [
+            "Id-Vg before and after program and erase (gives Vt)",
+            "ISPP program and erase transients: Vt against pulse number",
+            "Retention bake: Vt shift against time at 85 to 150 °C",
+            "Endurance: Vt window after 1k, 3k and 10k P/E cycles",
+            "Disturb on the neighbouring cell and on an unselected string"
+          ],
+          "calibrate": "Before changing anything, reproduce measured Id-Vg and ISPP curves from a fabricated paper in this tree. A deck that does not match silicon will not convince a reviewer.",
+          "figure": "Vt window, program speed (ISPP slope), retention loss and endurance"
+        },
+        "fab": {
+          "route": "A full 3D NAND stack needs an industrial line. In a university cleanroom, build a planar or few-layer vertical test cell (gate-all-around poly-Si channel with ONO), or work with an institute line such as imec or CEA-Leti.",
+          "tools": [
+            "University cleanroom or partner line",
+            "KLayout (masks)",
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device) for the process flow"
+          ],
+          "steps": [
+            "Deposit the alternating SiO2/Si3N4 (or SiO2/poly-Si) layers by LPCVD or PECVD",
+            "Etch the channel hole by RIE, then deposit blocking oxide, nitride and tunnel oxide by ALD or LPCVD",
+            "Deposit and anneal the poly-Si channel, then fill the core oxide",
+            "Word-line metal (or gate replacement), contacts and a forming-gas anneal"
+          ],
+          "measure": [
+            "Id-Vg and Vt extraction (Keysight B1500A parameter analyzer (with pulse units))",
+            "Pulsed program and erase with ISPP",
+            "Retention bake at 85 to 150 °C, extrapolated with Arrhenius",
+            "P/E cycling to 10k cycles",
+            "Read and program disturb on neighbouring cells"
+          ]
+        }
+      }
     },
     {
       "id": "hbf",
@@ -698,6 +744,50 @@
           "Run a memory-system simulator (Ramulator 2 / gem5 for HBM, MQSim for HBF) with an AI inference trace.",
           "Report bandwidth, latency, energy per bit and temperature against an HBM or SSD baseline."
         ]
+      },
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Ansys Icepak / Mechanical or COMSOL Multiphysics (thermal and stress)",
+            "Synopsys Sentaurus Interconnect",
+            "Synopsys Sentaurus Device or Silvaco Atlas for the memory cell"
+          ],
+          "structure": "The die stack: thinned dies, TSVs, micro-bumps or hybrid-bonding pads, underfill and the base logic die on an interposer. Add one memory cell or string at the hottest spot if the gap is about device behaviour.",
+          "models": [
+            "Heat conduction with temperature-dependent conductivity and the real power map",
+            "Thermo-mechanical stress from CTE mismatch (keep-out zone, Cu pumping)",
+            "Electromigration current density in TSVs and bumps",
+            "Device level: mobility, leakage and retention against temperature and stress"
+          ],
+          "runs": [
+            "Steady and transient temperature maps under the real access pattern",
+            "Stress around TSVs and its effect on nearby transistors",
+            "Retention or read disturb of a cell at the hottest die",
+            "TSV channel signal integrity (S-parameters, eye diagram)"
+          ],
+          "calibrate": "Calibrate the stack's thermal resistance and warpage to a measured stack from a paper in this tree.",
+          "figure": "peak temperature, stress, bandwidth per watt and retention at temperature"
+        },
+        "fab": {
+          "route": "Build test vehicles rather than products: daisy-chain TSV or hybrid-bonding structures, or stack commercial dies with a packaging partner.",
+          "tools": [
+            "Packaging lab or partner (OSAT, institute line)",
+            "KLayout (test-vehicle layout)"
+          ],
+          "steps": [
+            "TSV etch (Bosch DRIE), liner, barrier and seed, then Cu fill",
+            "Wafer thinning and backside reveal",
+            "Micro-bump or Cu-Cu hybrid bonding: surface activation, alignment, anneal",
+            "Underfill or molding and assembly on an interposer"
+          ],
+          "measure": [
+            "Daisy-chain and Kelvin contact resistance",
+            "Thermal resistance (thermal test die, IR camera)",
+            "Warpage and stress (shadow moire, Raman)",
+            "Eye diagram and bit error rate at the target data rate",
+            "Retention and refresh against temperature (DRAM) or read disturb (flash)"
+          ]
+        }
       }
     },
     {
@@ -969,7 +1059,49 @@
           "Feed the timing and energy into CACTI or DRAMsim3 to show the system-level benefit."
         ]
       },
-      "group": "memory"
+      "group": "memory",
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device)",
+            "Silvaco Victory Process + Victory Device / Atlas"
+          ],
+          "structure": "The access transistor (buried-channel or saddle-fin; vertical channel for 4F²) with the storage capacitor, either lumped or as a full cylinder MIM capacitor. For capacitorless cells, the IGZO 2T0C gain cell.",
+          "models": [
+            "Band-to-band and trap-assisted tunneling (GIDL and junction leakage)",
+            "SRH recombination with field enhancement (Hurkx model)",
+            "High-k capacitor dielectric leakage (Poole-Frenkel)",
+            "Doping and mobility models; for IGZO, a density of states with tail and deep states"
+          ],
+          "runs": [
+            "Id-Vg and off-state leakage against temperature",
+            "Write and read transients with the bit line and capacitor",
+            "Retention time (leakage at 85 °C)",
+            "Row hammer: toggle the aggressor word line, track the victim's charge"
+          ],
+          "calibrate": "Calibrate leakage and Id-Vg to a measured cell from a paper in this tree before changing the structure.",
+          "figure": "retention time, on-current, sense margin and row-hammer threshold"
+        },
+        "fab": {
+          "route": "Full DRAM arrays need an industrial line. At university, build discrete access transistors and MIM capacitors, or low-temperature oxide-semiconductor (IGZO) cells.",
+          "tools": [
+            "University cleanroom or partner line",
+            "KLayout (masks)"
+          ],
+          "steps": [
+            "Isolation and buried word-line recess etch, gate oxide and metal gate",
+            "Junction implants and activation anneal",
+            "MIM capacitor: TiN / ZrO2-Al2O3-ZrO2 / TiN by ALD",
+            "For IGZO cells: sputter or ALD the IGZO, gate stack, anneal in O2"
+          ],
+          "measure": [
+            "Id-Vg, GIDL and junction leakage against temperature (Keysight B1500A parameter analyzer (with pulse units))",
+            "C-V and dielectric leakage of the capacitor",
+            "Retention time with pulsed write and read",
+            "Row hammer on a small array"
+          ]
+        }
+      }
     },
     {
       "id": "emerging",
@@ -1253,6 +1385,51 @@
           "Simulate write / read / verify and report energy, latency and read margin.",
           "Run NVSim / NVMain (memory) or NeuroSim (CIM accuracy on a real network) to show the system-level benefit."
         ]
+      },
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device) for the access transistor and FeFET gate",
+            "COMSOL Multiphysics or Applied Materials Ginestra (ReRAM filament, PCM thermal)",
+            "mumax3 or OOMMF micromagnetics (MTJ)"
+          ],
+          "structure": "The memory element with its access transistor or selector: an MTJ pillar, a ReRAM metal-oxide-metal stack, a PCM mushroom or confined cell, or a FeFET gate stack.",
+          "models": [
+            "MTJ: LLG dynamics with spin-transfer or spin-orbit torque and a thermal field",
+            "ReRAM: oxygen-vacancy drift and diffusion with Joule heating",
+            "PCM: electro-thermal heating with crystallisation kinetics",
+            "FeFET: Preisach or multi-domain Landau-Khalatnikov ferroelectric with interface traps"
+          ],
+          "runs": [
+            "Switching current or voltage against pulse width",
+            "Retention (thermal stability, resistance drift) at 85 to 150 °C",
+            "Endurance cycling",
+            "Device-to-device variability (Monte Carlo)",
+            "Read disturb"
+          ],
+          "calibrate": "Calibrate switching and retention to measured devices from a paper in this tree.",
+          "figure": "switching energy, speed, retention, endurance and variability"
+        },
+        "fab": {
+          "route": "Most of these stacks can be made in a university cleanroom on Si: crossbars, or 1T1R cells on a foundry transistor wafer.",
+          "tools": [
+            "University cleanroom (sputter, ALD, lithography, ion-beam etch)",
+            "KLayout (masks)"
+          ],
+          "steps": [
+            "Bottom electrode, then the active stack: CoFeB/MgO MTJ (sputter), HfOx or TaOx (ALD), GST (sputter) or HfZrO (ALD)",
+            "Pattern pillars or crossbars (e-beam or optical lithography, ion-beam etch)",
+            "Top electrode and passivation; anneal to crystallise HZO or set the MTJ anisotropy",
+            "Add an access transistor (1T1R) if sneak paths or currents matter"
+          ],
+          "measure": [
+            "DC I-V and pulsed switching (Keysight B1500A parameter analyzer (with pulse units) with fast pulse units)",
+            "Retention bake and resistance drift",
+            "Endurance to 1e6 cycles or more",
+            "Cycle-to-cycle and device-to-device variability",
+            "MRAM: TMR and switching probability in a field"
+          ]
+        }
       }
     },
     {
@@ -1470,7 +1647,49 @@
           "Run a mission-profile thermal simulation to estimate junction temperature swing and lifetime."
         ]
       },
-      "group": "power"
+      "group": "power",
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device)",
+            "Silvaco Victory Process + Victory Device / Atlas"
+          ],
+          "structure": "A half or full unit cell of the trench or planar MOSFET or IGBT with the real drift layer, field plates and edge termination; add the package thermal network for ruggedness work.",
+          "models": [
+            "Avalanche impact ionisation (van Overstraeten or Okuto-Crowell)",
+            "Self-heating with lattice temperature (thermodynamic model)",
+            "SRH and Auger recombination with carrier lifetime",
+            "High-field mobility saturation and temperature dependence"
+          ],
+          "runs": [
+            "Breakdown voltage and specific on-resistance",
+            "Switching transients in a mixed-mode double-pulse circuit",
+            "Short-circuit and unclamped inductive switching with self-heating",
+            "Safe operating area"
+          ],
+          "calibrate": "Calibrate to the datasheet or measured I-V and switching curves of a device in this tree.",
+          "figure": "breakdown voltage, on-resistance, switching loss and short-circuit withstand time"
+        },
+        "fab": {
+          "route": "Power device fabrication needs a power line. Many groups instead build test circuits around commercial or partner devices and study packaging and reliability.",
+          "tools": [
+            "Partner power-device line, or commercial devices",
+            "KLayout (masks) or the vendor's samples"
+          ],
+          "steps": [
+            "Epitaxial drift layer and body implants",
+            "Trench etch, gate oxide and poly gate",
+            "Source and emitter implants, contacts and metal",
+            "Backside processing and die attach into a test package"
+          ],
+          "measure": [
+            "Static I-V and breakdown (curve tracer, e.g. Keysight B1505A)",
+            "Double-pulse switching test",
+            "Short-circuit and UIS tests",
+            "Power cycling, HTRB and HTGB"
+          ]
+        }
+      }
     },
     {
       "id": "wbg",
@@ -1730,7 +1949,52 @@
           "Report efficiency, switching loss, ringing and junction temperature versus Si or SiC baselines."
         ]
       },
-      "group": "power"
+      "group": "power",
+      "playbook": {
+        "tcad": {
+          "tools": [
+            "Synopsys Sentaurus (Sentaurus Process + Sentaurus Device)",
+            "Silvaco Victory Process + Victory Device / Atlas"
+          ],
+          "structure": "SiC: a MOSFET half-cell with the SiO2/SiC interface. GaN: the AlGaN/GaN heterostructure with buffer, field plates and p-GaN gate. Ga2O3: the lateral or vertical device with its substrate.",
+          "models": [
+            "Polarisation charge at the AlGaN/GaN interface (GaN)",
+            "Interface and buffer traps (Dit, carbon-doped buffer)",
+            "Incomplete ionisation of dopants (SiC, Ga2O3)",
+            "Anisotropic mobility (4H-SiC) and impact ionisation",
+            "Self-heating with the real thermal conductivity (important for Ga2O3)"
+          ],
+          "runs": [
+            "Id-Vg, Id-Vd and breakdown",
+            "Dynamic on-resistance and current collapse after off-state stress",
+            "Threshold drift under gate bias",
+            "Switching in a mixed-mode double-pulse circuit",
+            "Temperature map at rated power"
+          ],
+          "calibrate": "Calibrate traps and mobility to measured I-V and pulsed I-V from a device in this tree.",
+          "figure": "breakdown voltage, on-resistance, dynamic Ron, threshold stability and switching loss"
+        },
+        "fab": {
+          "route": "GaN-on-Si and Ga2O3 devices can be made in a university cleanroom on bought epi wafers; SiC MOSFETs usually need a partner line for implants and high-temperature anneals.",
+          "tools": [
+            "University cleanroom with bought epi wafers, or a partner line",
+            "KLayout (masks)"
+          ],
+          "steps": [
+            "Mesa isolation or implant isolation",
+            "Ohmic contacts (Ti/Al/Ni/Au for GaN) with rapid thermal anneal",
+            "Gate dielectric (ALD Al2O3 or SiO2) or p-GaN gate, then gate metal",
+            "Field plates, passivation (SiN) and pads"
+          ],
+          "measure": [
+            "Static I-V and breakdown",
+            "Pulsed I-V for trapping and dynamic Ron",
+            "Gate-bias stress (HTGB) and Vth drift",
+            "Double-pulse switching",
+            "Raman thermography or thermoreflectance for self-heating"
+          ]
+        }
+      }
     }
   ],
   "groups": [

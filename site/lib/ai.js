@@ -12,7 +12,7 @@ const GAP_STAGES = [...new Set(Object.values(GAP_TYPES).map((g) => g.stage))];
 export const SCHEMA = obj({
   summary: STR,
   base_reason: STR,
-  gaps: { type: "array", items: obj({ title: STR, stage: { type: "string", enum: GAP_STAGES }, why: STR, evidence_ids: LIST, next_steps: LIST, tools: LIST }) },
+  gaps: { type: "array", items: obj({ title: STR, stage: { type: "string", enum: GAP_STAGES }, why: STR, evidence_ids: LIST, next_steps: LIST, tools: LIST, expected_outcome: STR }) },
   applicability: { type: "array", items: obj({ id: STR, verdict: { type: "string", enum: ["already done here", "applies", "partly applies", "does not apply"] }, note: STR }) },
 });
 
@@ -26,7 +26,10 @@ export const SYSTEM =
   "or reject the candidate gaps and add better ones; the authors' own stated limitations and future work are strong leads, but check whether a citing paper has already done them. Typical gaps: simulated but never fabricated; a physical effect or TCAD model " +
   "missing; a device never evaluated in a circuit (name the compact model and EDA tool, e.g. Verilog-A + Cadence Spectre, ASM-HEMT, " +
   "LTspice/PLECS, ngspice); a technique from a related paper that could apply. Each gap cites the ids of the papers it rests on, " +
-  "and gives 3-5 next steps a PhD student could start this month); 'applicability' (for up to 8 of the most relevant related or " +
+  "and gives 4-6 next steps a PhD student could start this month, written as actions: name the tool (e.g. Synopsys Sentaurus, Silvaco Atlas, " +
+  "COMSOL, Cadence Spectre, ngspice), the structure to build, the physics models to switch on, the simulations or measurements to run " +
+  "(e.g. Id-Vg, program/erase, retention bake, endurance cycling, double-pulse switching) and what to compare against; plus " +
+  "'expected_outcome', one sentence on what the work would show and where it could be published); 'applicability' (for up to 8 of the most relevant related or " +
   "citing papers: is their idea already done in the target, does it apply, partly apply, or not apply, with a one-line note). " +
   "Do not invent results, numbers or papers. If an abstract is too thin to judge, say so in the note. Plain text, no markdown.";
 

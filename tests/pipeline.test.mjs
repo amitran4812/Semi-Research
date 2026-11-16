@@ -132,3 +132,28 @@ test("OpenAlex: phrases in one OR search, API key sent, stops when the daily bud
   assert.equal(seen.length, before, "no more OpenAlex requests once the budget is spent");
   assert.ok(s.oaOut && !logs.join(" ").includes("k123"), "key never logged");
 });
+
+test("every gap gets a step-by-step plan with tools, runs and an outcome", async () => {
+  const { actionPlan, routeOf } = await import("../site/lib/plan.js");
+  const s = src();
+  const tree = await buildTree(s, await s.resolve("10.1109/TED.2026.0001"), { tree: cfg.tree });
+  const { gaps } = analyzeTree(tree, { cat: nand, cfg, topicId: "3d-nand-cell", pool: [] });
+  for (const g of gaps) {
+    const plan = actionPlan(g, nand);
+    assert.ok(plan.phases.length >= 3 && plan.outcome && plan.effort, g.type);
+    assert.ok(plan.phases.every((ph) => ph.steps.length), g.type);
+  }
+  const miss = gaps.find((g) => g.type === "missing_feature");
+  const txt = JSON.stringify(actionPlan(miss, nand));
+  assert.match(txt, /Sentaurus/);
+  assert.match(txt, /ISPP|Retention bake/);
+  assert.match(txt, /with and without/);
+  assert.equal(routeOf({ type: "not_in_circuit" }), "circuit");
+  assert.match(JSON.stringify(actionPlan({ type: "not_in_circuit" }, nand)), /Verilog-A/);
+  assert.match(JSON.stringify(actionPlan({ type: "not_fabricated" }, nand)), /B1500/);
+  assert.equal(routeOf({ source: "ai", stage: "Follow-up", title: "Fabricate a vertical cell" }), "fab");
+  for (const c of cfg.categories) for (const t of ["tcad", "fab", "circuit", "study"]) {
+    const g = { tcad: { type: "missing_feature", feature: c.features[0].id }, fab: { type: "not_fabricated" }, circuit: { type: "not_in_circuit" }, study: { type: "authors_future_work" } }[t];
+    assert.ok(actionPlan(g, c).phases.length >= 3, c.id + " " + t);
+  }
+});
