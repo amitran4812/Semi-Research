@@ -7,6 +7,7 @@ import { analyzeTree, coverage, guessCategory, keepRegexes, profile, topicGaps, 
 import { findDois, cleanText } from "./lib/text.js";
 import { PROVIDERS, analyzeWithAI, complete, buildPrompt, parseJson, CHAT_SYSTEM } from "./lib/ai.js";
 import { actionPlan } from "./lib/plan.js";
+import { ipNote } from "./lib/patents.js";
 import { exportKey, importKey, isSealed, open as openBox, unlock, CHECK } from "./lib/lock.js";
 import { ruleBriefing, trendPrompt, trendTerms, TREND_SYSTEM, TREND_SCHEMA } from "./lib/trends.js";
 
@@ -132,15 +133,16 @@ function normGaps(analysis, ai) {
 }
 function gapTile(g, i, from) {
   return `<button type="button" class="card hover gap-tile${from ? " has-from" : ""}" data-gap="${i}">
-    <div class="meta"><span class="badge st">${esc(g.stage || "")}</span>${g.source === "ai" ? '<span class="badge ai">AI</span>' : ""}</div>
+    <div class="meta"><span class="badge st">${esc(g.stage || "")}</span>${g.source === "ai" ? '<span class="badge ai">AI</span>' : ""}${g.ip && /^Open for IP/.test(g.ip) ? '<span class="badge ip open">OPEN FOR IP</span>' : g.ip && /^Crowded/.test(g.ip) ? '<span class="badge ip crowded">CROWDED</span>' : ""}</div>
     <h3>${esc(g.title)}</h3>
     <p>${esc(g.why)}</p>
     ${from ? `<div class="from">From: ${esc(from)}</div>` : ""}
     <div class="foot"><span>${g.evidence.length ? g.evidence.length + " supporting paper" + (g.evidence.length > 1 ? "s" : "") : ""}</span><span class="read">${g.route ? esc(g.route) + " →" : "Next steps →"}</span></div>
   </button>`;
 }
-function gapGrid(gaps, lookup, cat, froms) {
+function gapGrid(gaps, lookup, cat, froms, ipData) {
   if (!gaps.length) return empty("No gaps found by the checks for this paper.");
+  if (ipData && ipData.ip) gaps.forEach((g) => { if (g.ip == null) g.ip = ipNote(g, ipData.ip, ipData.patents_total || 0); });
   gaps.forEach((g) => { if (!g.plan) { g.plan = actionPlan(g, cat); g.route = g.plan && g.plan.short; } });
   const html = `<div class="tiles gaps">${gaps.map((g, i) => gapTile(g, i, froms && froms[i])).join("")}</div>`;
   setTimeout(() => {
@@ -167,6 +169,7 @@ function openGap(g, lookup, cat) {
     ${g.quotes ? `<p>The paper's own words:</p>${g.quotes.map((q) => `<blockquote class="why">${esc(q)}</blockquote>`).join("")}` : `<p>${esc(g.why)}</p>`}
     ${g.steps.length ? `<h4>${g.plan ? "First, for this paper" : "What you can do"}</h4><ol>${g.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
     ${g.tools.length ? `<div class="tags">${g.tools.map((t) => `<span class="tag topic">${esc(t)}</span>`).join("")}</div>` : ""}
+    ${g.ip ? `<div class="notice ipnote"><b>Patents:</b> ${esc(g.ip)}</div>` : ""}
     ${g.plan ? planHtml(g.plan, g) : g.compact ? `<h4>Compact model</h4><p>${esc(g.compact)}</p>` : ""}
     ${ev.length ? `<h4>Based on these papers</h4><div class="list">${ev.map((p) => paperCard(p, cat)).join("")}</div>` : ""}
   </div></div>`;
@@ -359,6 +362,42 @@ function yearChart(years, now = new Date()) {
   }).join("");
   return `<svg class="yearchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Papers per year: ${years.map((y) => y.year + " " + y.count).join(", ")}"><line class="base" x1="${padL}" x2="${W - padR}" y1="${H - padB}" y2="${H - padB}"></line>${bars}</svg>`;
 }
+// ------------------------------------------------------------------ patents
+function patentRow(pt, lookup) {
+  const linked = (pt.links || []).map((l) => ({ l, p: lookup(l.id) })).filter((x) => x.p);
+  return `<article class="card paper patent">
+    <h3>${ext(pt.url, pt.title || pt.id)}</h3>
+    <div class="meta"><span class="badge pat">PATENT</span><span class="src">${esc(pt.applicants.join(", ") || "Applicant not listed")}</span><span class="dot">${esc(pt.id)}</span>${pt.date ? `<span class="dot">${esc(fmtDate(pt.date))}</span>` : ""}${pt.also && pt.also.length ? `<span class="dot">also ${esc(pt.also.join(", "))}</span>` : ""}</div>
+    ${pt.abstract ? `<details class="abstract"><summary>Abstract</summary><p>${esc(pt.abstract)}</p></details>` : ""}
+    ${linked.length ? `<div class="pat-links"><span class="eyebrow">Connected papers</span><ul>${linked.map(({ l, p }) => `<li><b>${esc(l.kind === "cites" ? "Cited" : "Related")}:</b> ${p.url ? ext(p.url, p.title) : esc(p.title)} <span class="small muted">${esc(l.kind === "cites" ? "the patent cites this paper" : l.why)}</span></li>`).join("")}</ul></div>` : ""}
+    <div class="links">${ext(pt.url, "Espacenet")}${ext(pt.gp, "Google Patents")}</div>
+  </article>`;
+}
+function patentSection(data, lookup, cat) {
+  if (!data.patents) return `<section>${sectionTitle("Patents · who is filing")}${empty("Patents are not loaded yet. Add the free <b>EPO_OPS_KEY</b> and <b>EPO_OPS_SECRET</b> secrets (developers.epo.org) and run the weekly build.")}</section>`;
+  const pats = data.patents, filers = data.filers || [], ip = (data.ip || []).slice().sort((a, b) => (b.signal ? 1 : 0) - (a.signal ? 1 : 0) || b.papers + b.patents - a.papers - a.patents);
+  const maxF = Math.max(1, ...filers.map((f) => f.count));
+  const linked = pats.filter((p) => (p.links || []).some((l) => l.kind === "cites")).length;
+  const sig = (r) => r.signal === "open" ? '<span class="badge ip open">OPEN FOR IP</span>' : r.signal === "crowded" ? '<span class="badge ip crowded">CROWDED</span>' : "";
+  return `<section class="patents">${sectionTitle("Patents · who is filing", `<span class="small muted">${data.patents_total} patent families published since ${esc(fmtDate(data.patents_since))} (EPO, worldwide)</span>`)}
+    <div class="trend-row">
+      <div class="card pad"><span class="eyebrow">Top filers</span>${filers.length ? `<ul class="filers">${filers.map((f) => `<li title="${esc(f.name)}: ${f.count} patent families"><span>${esc(f.name)}</span><i style="--w:${Math.round((100 * f.count) / maxF)}%"></i><b>${f.count}</b></li>`).join("")}</ul>` : '<p class="small muted">No applicants listed.</p>'}</div>
+      <div class="card pad"><span class="eyebrow">Papers against patents</span><p class="small muted">Recent papers and patents that mention each effect. <b>Open for IP</b>: studied in papers, rarely patented. <b>Crowded</b>: industry is filing heavily, so read the claims first.</p>
+        ${ip.length ? `<table class="applic ipmap"><thead><tr><th>Effect / technique</th><th>Papers</th><th>Patents</th><th></th></tr></thead><tbody>${ip.slice(0, 12).map((r) => `<tr><td>${esc(r.name)}${r.filers.length ? `<span class="small muted"> · ${esc(r.filers.map((f) => f.name).join(", "))}</span>` : ""}</td><td class="c">${r.papers}</td><td class="c">${r.patents}</td><td>${sig(r)}</td></tr>`).join("")}</tbody></table>` : ""}
+      </div>
+    </div>
+    <details class="pat-list"${pats.length <= 6 ? " open" : ""}><summary>Recent patents (${pats.length} shown${linked ? `, ${linked} cite papers in this topic` : ""})</summary><div class="list">${pats.slice(0, 30).map((p) => patentRow(p, lookup)).join("") || empty("No patents found for this topic in the last year.")}</div></details>
+  </section>`;
+}
+function paperPatents(tree, data) {
+  if (!data || !data.patents) return "";
+  const ids = new Set([tree.seed.id, ...Object.keys(tree.nodes || {})]);
+  const rel = data.patents.filter((pt) => (pt.links || []).some((l) => ids.has(l.id)));
+  if (!rel.length) return "";
+  const lookup = makeLookup([tree], data.pool || []);
+  return `<section>${sectionTitle("Related patents", `<span class="small muted">Patents that cite or share terms with this paper or its tree</span>`)}<div class="list">${rel.slice(0, 8).map((p) => patentRow(p, lookup)).join("")}</div></section>`;
+}
+
 function trendSection(topic, cat, trend) {
   const key = "trend-" + topic.id;
   const mine = mem.ai[key];
@@ -427,7 +466,8 @@ async function topicPage(id) {
     ${banner(cat.name, topic.name, `Recent papers since ${esc(fmtDate(data.since))}, with citation trees for the ${data.seeds.length} newest Transactions-first papers. Updated ${esc(fmtDate(data.updated))}.`, cat.art,
       `<div class="stats"><div class="card stat"><div class="big">${pool.length}</div><div class="lbl">recent papers</div></div><div class="card stat"><div class="big">${pool.filter((p) => p.tx).length}</div><div class="lbl">IEEE Transactions</div></div><div class="card stat"><div class="big">${counts.sim}</div><div class="lbl">simulation only</div></div><div class="card stat"><div class="big">${allGaps.length}</div><div class="lbl">gaps found</div></div></div>`)}
     ${trendSection(topic, cat, data.trend)}
-    <section>${sectionTitle("Research gaps")}${gapGrid(allGaps, lookupAll, cat, froms)}</section>
+    ${patentSection(data, lookupAll, cat)}
+    <section>${sectionTitle("Research gaps")}${gapGrid(allGaps, lookupAll, cat, froms, data)}</section>
     <section>${sectionTitle("Citation trees")}<div class="list">${data.seeds.map((t) => paperCard(t.seed, cat, { href: `#/p/${id}/${t.seed.id}`, label: `${t.references.length} references · ${t.citers.length} citing · ${t.base_citers.length} building on the base paper` })).join("") || empty("No seed papers yet.")}</div></section>
     <section>${sectionTitle("Where the field is thin")}<p class="small muted">How many recent papers in this topic touch each effect, split by stage. Pale or empty cells are where nobody has gone yet.</p>
       <div class="card pad cov-wrap">${covTable(cov)}</div>
@@ -456,7 +496,7 @@ async function paperPage(topicId, seedId) {
   const tree = data && data.seeds.find((t) => t.seed.id === seedId);
   if (!tree) return notFound();
   const catPool = await categoryPool(cat);
-  renderPaper(tree, cat, { topicId, pool: catPool, crumbs: [["Home", "#/"], [cat.name, "#/c/" + cat.id], [topic.name, "#/t/" + topicId], ["Paper"]], rerender: () => paperPage(topicId, seedId) });
+  renderPaper(tree, cat, { topicId, pool: catPool, ipData: data, crumbs: [["Home", "#/"], [cat.name, "#/c/" + cat.id], [topic.name, "#/t/" + topicId], ["Paper"]], rerender: () => paperPage(topicId, seedId) });
 }
 
 function renderPaper(tree, cat, opts) {
@@ -477,9 +517,10 @@ function renderPaper(tree, cat, opts) {
       ${tree.seed.abstract ? `<details class="abstract"><summary>Abstract</summary><p>${esc(tree.seed.abstract)}</p></details>` : ""}
       <div class="links">${ext(tree.seed.url, "Paper")}${freePdf(tree.seed) ? ext(freePdf(tree.seed), "Free PDF") : tree.seed.oa_url ? ext(tree.seed.oa_url, "Free copy") : ""}${tree.seed.doi ? ext("https://doi.org/" + tree.seed.doi, "DOI") : ""}${ext("https://scholar.google.com/scholar?q=" + encodeURIComponent(tree.seed.title), "Google Scholar")}</div>
       <p class="small muted">${tree.seed.ft ? `Read from the free full text (${esc(tree.seed.ft.source)}, about ${tree.seed.ft.words} words).` : "No free full text found, so this is judged from the title and abstract."}</p></article>
-    <section>${sectionTitle("Research gaps")}${gapGrid(gaps, lookup, cat)}</section>
+    <section>${sectionTitle("Research gaps")}${gapGrid(gaps, lookup, cat, null, opts.ipData)}</section>
     <section>${sectionTitle("Citation tree", `<span class="small muted">${tree.seed.refs_total || tree.references.length} references in total; the most relevant ${tree.references.length} shown</span>`)}${treeSvg(singleTreeColumns(tree), cat, "t")}</section>
     ${base ? `<section>${sectionTitle("Base paper")}${paperCard(base, cat, { base: true })}<p class="small" style="margin-top:.6rem">${esc((ai && ai.base_reason) || an.base_reason)}</p></section>` : ""}
+    ${paperPatents(tree, opts.ipData)}
     ${aiPanel(key, [{ tree, analysis: an }], cat, related, tree.ai)}
     <section class="cols-2"><div>${sectionTitle("Cited by")}<div class="list">${list(tree.citers).map((p) => paperCard(p, cat)).join("") || empty("Nobody has cited it yet.")}</div></div>
       <div>${sectionTitle("Building on the base paper")}<div class="list">${list(tree.base_citers).map((p) => paperCard(p, cat)).join("") || empty("No other papers found.")}</div></div></section>

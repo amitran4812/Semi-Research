@@ -17,7 +17,8 @@ For each topic it:
    - *Idea from a nearby topic*: a technique used in a sibling topic (for example cache / page buffer work in NAND) that is missing here.
    - *Untried combination*: two directions people building on the base paper follow, but never together.
    - Every gap opens with a **step-by-step plan**: the route (TCAD, fabrication and measurement, or compact model and circuit), the tools (Sentaurus, Silvaco, COMSOL, Spectre, ngspice, …), the structure to build, the physics models to switch on, the simulations or measurements to run, what to compare against, a rough effort and the expected outcome. Edit the per-field `playbook` in `config.json` to change them.
-6. A **coverage grid** per topic shows, for every effect, how many recent papers are simulation, fabricated or circuit-level, so thin spots stand out.
+6. **Patents**: patent families published in the last year for each topic (EPO OPS, worldwide), linked to the papers they cite or share terms with, the top filers, and a papers-against-patents map per effect. A gap gets *Open for IP* when papers study it but few patents do, or *Crowded* when industry is filing heavily.
+7. A **coverage grid** per topic shows, for every effect, how many recent papers are simulation, fabricated or circuit-level, so thin spots stand out.
 
 ### My papers
 
@@ -59,6 +60,7 @@ The site is then at `https://<user>.github.io/<repo>/`.
 | `S2_API_KEY` | Actions *secret* | Semantic Scholar key (free on request) for higher rate limits. |
 | `UNPAYWALL_EMAIL` | Actions *variable* | Email Unpaywall asks for; turns on Unpaywall open-access lookups (falls back to `OPENALEX_EMAIL`). |
 | `CORE_API_KEY` | Actions *secret* | Free key from core.ac.uk; adds full texts from university repositories. |
+| `EPO_OPS_KEY`, `EPO_OPS_SECRET` | Actions *secrets* | Free EPO Open Patent Services keys (register at developers.epo.org, create an app). Turns on the patent search: who is filing in each topic, patents linked to papers, and the open-for-IP / crowded signals on gaps. |
 | `GAPFINDER_ACCESS_CODE` | Actions *secret* | Locks the site behind this code (see *Access code*). |
 
 Trees are kept for 14 days and only new ones are sent to Claude, so a weekly run makes at most about 50 Claude calls for trees plus one briefing per topic (28).
@@ -96,6 +98,7 @@ site/
   lib/engine.js                      stage detection, gap checks, coverage grid
   lib/fulltext.js                    free full text: arXiv HTML, open PDFs (pdf.js), limitations / future work
   lib/ai.js                          prompt, JSON schema, bring-your-own-key providers
+  lib/patents.js                     EPO OPS client, patent-paper links, filers, IP map
   lib/plan.js                        step-by-step plan for each gap
   lib/lock.js                        access code: AES-GCM encryption of the data files
   lib/trends.js                      topic briefing: papers per year, rising terms, news, briefing prompt

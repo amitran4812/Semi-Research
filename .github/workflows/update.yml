@@ -58,6 +58,8 @@ jobs:
           UNPAYWALL_EMAIL: ${{ vars.UNPAYWALL_EMAIL }}
           CORE_API_KEY: ${{ secrets.CORE_API_KEY }}
           GAPFINDER_ACCESS_CODE: ${{ secrets.GAPFINDER_ACCESS_CODE }}
+          EPO_OPS_KEY: ${{ secrets.EPO_OPS_KEY }}
+          EPO_OPS_SECRET: ${{ secrets.EPO_OPS_SECRET }}
           ONLY: ${{ inputs.only }}
           REFRESH: ${{ inputs.refresh }}
         run: |
