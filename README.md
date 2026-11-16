@@ -16,6 +16,7 @@ For each topic it:
    - *Not used in a circuit yet*: with the compact model to fit and the EDA tools to use (Cadence Spectre, HSPICE, ngspice/Xyce + OpenVAF, LTspice, PLECS, Keysight ADS, ASM-HEMT, …) and the steps.
    - *Idea from a nearby topic*: a technique used in a sibling topic (for example cache / page buffer work in NAND) that is missing here.
    - *Untried combination*: two directions people building on the base paper follow, but never together.
+   - Every gap opens with a **step-by-step plan**: the route (TCAD, fabrication and measurement, or compact model and circuit), the tools (Sentaurus, Silvaco, COMSOL, Spectre, ngspice, …), the structure to build, the physics models to switch on, the simulations or measurements to run, what to compare against, a rough effort and the expected outcome. Edit the per-field `playbook` in `config.json` to change them.
 6. A **coverage grid** per topic shows, for every effect, how many recent papers are simulation, fabricated or circuit-level, so thin spots stand out.
 
 ### My papers
@@ -69,6 +70,7 @@ Everything lives in [`site/config.json`](site/config.json):
 - `categories[].topics`: each topic's search phrases and `brief` (core idea, why it is hot, what industry is doing, extra search phrases). Add a topic and it gets its own page and square. `brief_asof` dates the hand-written background; update it when the field moves.
 - `categories[].venues_issn`: journals searched first (IEEE T-ED, T-PEL, TDMR, EDL, JSSC, JEDS, …).
 - `categories[].features`: the effects and techniques checked, the words that detect them, and the TCAD advice for each (`kind: technique` ones can move between topics).
+- `categories[].playbook`: per field, the TCAD tools, structure, models and runs, and the fabrication route, steps and measurements used in each gap's plan.
 - `categories[].eda`: compact model, EDA tools and steps for the "put it in a circuit" gap.
 - `stage_terms`: words that mark a paper as simulation, fabricated or circuit-level.
 - `tree`: how many references and citing papers each tree keeps.
@@ -94,6 +96,7 @@ site/
   lib/engine.js                      stage detection, gap checks, coverage grid
   lib/fulltext.js                    free full text: arXiv HTML, open PDFs (pdf.js), limitations / future work
   lib/ai.js                          prompt, JSON schema, bring-your-own-key providers
+  lib/plan.js                        step-by-step plan for each gap
   lib/lock.js                        access code: AES-GCM encryption of the data files
   lib/trends.js                      topic briefing: papers per year, rising terms, news, briefing prompt
   data/                              written by the scheduled build
